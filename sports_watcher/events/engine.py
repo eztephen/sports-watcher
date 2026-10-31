@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from sports_watcher.clock import StreamClock
 from sports_watcher.events.fuser import PendingEvent, resolve_pending
-from sports_watcher.events.model import Event, EventStatus, SourceInfo
+from sports_watcher.events.model import Event, EventStatus, Evidence, SourceInfo
 from sports_watcher.events.sinks import EventSink
 from sports_watcher.sports.base import EventDraft, Observation, SportPlugin
 from sports_watcher.state.game_state import GameState
@@ -66,6 +66,36 @@ class EventEngine:
         for sink in self.sinks:
             sink.close()
         return out
+
+    def emit_direct(
+        self,
+        type: str,
+        team: str,
+        evidence: Evidence,
+        t_pts: float,
+        t_wall: datetime,
+        confidence: float = 1.0,
+    ) -> Event:
+        """Emit an already-confirmed event that needs no provisional stage, such as a
+        ``stream_gap`` the watcher observed directly."""
+        event = Event(
+            game_id=self.game_id,
+            seq=self._next_seq(),
+            type=type,
+            status=EventStatus.confirmed,
+            t_pts=t_pts,
+            t_wall=t_wall,
+            emitted_wall=datetime.now(UTC),
+            behind_live_s=self.clock.behind_live_s(),
+            period=self.state.period,
+            game_clock_s=self.state.clock_s,
+            team=team,  # type: ignore[arg-type]
+            evidence=evidence,
+            confidence=confidence,
+            source=self.source,
+        )
+        self._emit(event)
+        return event
 
     # -- internals --------------------------------------------------------------------
 
