@@ -190,29 +190,32 @@ names the early case.
 |---|---|---|---|
 | `possession_start` | holder's team differs from `possession` | that team holds the ball for 0.5 s | the other team holds it first |
 | `shot_attempt` | ball leaves the holder with upward image velocity, and a parabola fitted to the next four ball observations passes within 1.5 rim widths of the rim box inside 1.5 s; team and player are the last holder; zone from the shooter's feet through the homography (`two`, `three`, `unknown` below homography confidence 0.4) | ball enters the rim region, or a score delta of 2 or 3 arrives | neither within the TTL and the same team still holds the ball |
-| `shot_made` | score delta of 2 or 3 within 3 s of an attempt (emitted confirmed through `emit_direct`, like `stream_gap`: the delta is already a voted read), or the ball centre crosses the rim box top to bottom inside its width (provisional) | the delta, for the vision-only draft | no delta by the TTL |
+| `shot_made` | score delta of 2 or 3 within 3 s of an attempt (drafted with a confirmer that confirms on the next observation: the delta is already a voted read), or the ball centre crosses the rim box top to bottom inside its width (provisional) | the delta, for the vision-only draft | no delta by the TTL |
 | `shot_missed` | ball leaves the rim region and 3 s pass without a delta | the next holder appears | a late delta |
 | `rebound` | first holder after a miss; `offensive` when the holder's team shot | holder holds 0.5 s | holder flips |
 | `turnover` | a confirmed `possession_start` with no `shot_attempt` since the previous one, or the shot clock resets to full without one | possession holds 0.5 s | an attempt is drafted retroactively |
 | `timeout` | clock stopped and camera state off main for 20 s | clock still stopped at 30 s | clock runs again within 10 s |
-| `tip_off` | period 1 or overtime, clock at full, two players' feet within 2 m of the centre circle and the ball rising from between them | first confirmed possession within 5 s; `team` becomes that team | no possession within 10 s |
+| `tip_off` | period 1 or overtime, clock at full, two players' feet within 2 m of the centre circle and the ball rising from between them | a possession is established within 5 s (`team` stays `unknown`: a terminal copy never changes fields; the winner is read from the `possession_start` that follows) | no possession within 10 s |
 | `free_throw_attempt` | clock stopped, at least four players' feet within 1 m of the key's side lines, one player holding the ball within 1 m of the free-throw line; drafted on release | the attempt resolves (below) | formation breaks before release |
 | `free_throw_made` / `_missed` | delta of 1 within 3 s of the attempt makes it; otherwise missed at 3 s | made: the delta; missed: no delta by the TTL | missed: a late delta |
 
 A score delta with no attempt inside 3 s emits the retroactive `shot_attempt` of v1
-section 5.6 at confidence 0.4, zone from the delta.
+section 5.6 at confidence 0.4, zone from the delta (`ft`, `two`, `three`), followed for
+a 2 or 3 by a `shot_made` at the same confidence.
 
 Rules that need court positions (`tip_off`, free throws, zone) stay silent, or report
 `unknown`, when the homography is `None`.
 
 ## 7. Firsts
 
-`fold_firsts` gains, over confirmed events in `seq` order: `first_possession` from the
-first `possession_start`; `tip_off_winner` from `tip_off`; `first_shot_attempt` from the
-first `shot_attempt`; `possessions[]`, one entry per `possession_start` with `result`
-from what happened before the next one: `score` (a made shot or free throw by that
-team), `miss` (a `shot_missed` then the other team's possession), `turnover`, or
-`end_period`. `foul` needs commentary and does not appear in M1.
+`fold_firsts` gains, over confirmed events in `t_pts` order: `first_possession` from the
+first `possession_start`; `tip_off_winner` from the first `possession_start` within 5 s
+after a confirmed `tip_off`; `first_shot_attempt` from the first `shot_attempt`;
+`possessions[]`, one entry per `possession_start` with `result` from what happened
+before the next one: `score` (a made shot or free throw by that team), `turnover`,
+`miss` (a `shot_missed` or `free_throw_missed` by that team), or `end_period`. A
+possession with none of those and no later `possession_start` is left out. `foul`
+needs commentary and does not appear in M1.
 
 ## 8. Failure behaviour
 
