@@ -7,6 +7,8 @@ data/*
 !data/golden/
 data/golden/*
 !data/golden/README.md
+!data/golden/*.truth.jsonl
+!data/golden/*.meta.json
 tmp/
 .pytest_cache/
 .ruff_cache/

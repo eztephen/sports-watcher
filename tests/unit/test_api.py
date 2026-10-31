@@ -2,8 +2,8 @@ from fastapi.testclient import TestClient
 
 from sports_watcher.api.jobs import JobManager
 from sports_watcher.api.main import create_app
-from sports_watcher.config import Settings
 from sports_watcher.ingest.factory import register_source
+from tests.helpers.leagues import fixture_settings
 from tests.helpers.scoreboard_images import boxes
 from tests.helpers.sources import StubSource
 from tests.helpers.text_readers import ScriptedTextReader
@@ -16,8 +16,8 @@ def scripted():
 
 def make_client(n_frames: int = 200) -> tuple[TestClient, JobManager]:
     register_source("stub", lambda spec: StubSource(n=n_frames))
-    jobs = JobManager(Settings(_env_file=None), text_reader_factory=scripted, ocr_every_n_frames=5)
-    return TestClient(create_app(settings=Settings(_env_file=None), jobs=jobs)), jobs
+    jobs = JobManager(fixture_settings(), text_reader_factory=scripted, ocr_every_n_frames=5)
+    return TestClient(create_app(settings=fixture_settings(), jobs=jobs)), jobs
 
 
 def test_game_lifecycle_over_http_and_websocket():

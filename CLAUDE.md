@@ -34,7 +34,9 @@ Always use `./.venv/bin/python`. `tests/integration` runs real RapidOCR (about 3
   reconnects for URL sources (`stream_gap` events).
 - `sports_watcher/api/` — FastAPI job API and websocket.
 - `sports_watcher/replay/`, `sports_watcher/eval/` — replay rig, truth files, scoring.
-- `configs/leagues/*.yaml` — court dimensions, period lengths, broadcaster scoreboard ROI.
+- `configs/leagues/*.yaml` — court dimensions, period lengths, broadcaster scoreboard boxes
+  (NBA Cup and One Sports PBA are calibrated). Pipeline tests use `tests/fixtures/configs`
+  (detection ROI, scripted readers) via `tests/helpers/leagues.py`, never the production calibration.
 
 ## Rules
 

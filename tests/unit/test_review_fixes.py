@@ -10,7 +10,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from sports_watcher.clock import LatencyClass, StreamClock
-from sports_watcher.config import load_league
 from sports_watcher.events.engine import EventEngine
 from sports_watcher.events.model import EventStatus, SourceInfo
 from sports_watcher.ingest.base import Frame, SourceSpec
@@ -21,14 +20,16 @@ from sports_watcher.perception.scoreboard import ScoreboardReader
 from sports_watcher.sports.base import Observation
 from sports_watcher.sports.basketball.plugin import BasketballPlugin
 from sports_watcher.watcher import GameWatcher
+from tests.helpers.leagues import fixture_league
 from tests.helpers.scoreboard_images import B1, B2, BLANK, BROADCASTER, boxes
 from tests.helpers.sources import FailingStubSource, StubSource
 from tests.helpers.text_readers import ScriptedTextReader, SeqTextReader
 
-PBA = load_league("pba")
+PBA = fixture_league("pba")
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
-GOOD = [("78", B1, 0.9), ("65", B2, 0.9)]
-BAD = [("73", B1, 0.9), ("65", B2, 0.9)]
+CLOCK = ("7:31", (100, 0, 60, 20), 0.9)
+GOOD = [("78", B1, 0.9), ("65", B2, 0.9), CLOCK]
+BAD = [("73", B1, 0.9), ("65", B2, 0.9), CLOCK]
 
 
 def _no_orphans(events):

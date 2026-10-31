@@ -9,8 +9,18 @@ overtime_length_s: 300
 shot_clock_s: 24
 asr_languages: [en, tl]
 broadcasters:
+  # One Sports (Cignal) PBA feed, calibrated 2026-10-31 on the Rain or Shine vs Converge
+  # quarterfinal (1920x1080). Stacked bug bottom-left: team names, a white score column,
+  # clock top-right, period and a red shot-clock box below it. Top row is treated as the
+  # away team and bottom row as home (stacked-scoreboard convention); PBA venues are
+  # neutral, so confirm the designation per game when it matters for settlement.
   one_sports:
-    # Placeholder until calibrated against a One Sports recording (Task 12).
-    scoreboard_roi: {x: 0.02, y: 0.86, w: 0.40, h: 0.10}
-    home_side: left
+    scoreboard_roi: {x: 0.045, y: 0.800, w: 0.300, h: 0.095}
+    home_side: right
     shot_clock_visible: true
+    fields:
+      away:       {x: 0.226, y: 0.806, w: 0.050, h: 0.044}
+      home:       {x: 0.226, y: 0.850, w: 0.050, h: 0.044}
+      clock:      {x: 0.288, y: 0.812, w: 0.052, h: 0.032}
+      period:     {x: 0.281, y: 0.858, w: 0.026, h: 0.030}
+      shot_clock: {x: 0.307, y: 0.856, w: 0.030, h: 0.034}

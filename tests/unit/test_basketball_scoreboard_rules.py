@@ -80,3 +80,45 @@ def test_scoreboard_agrees_confirmer():
     assert confirmer(draft, agreeing, with_read) == "confirmed"
     fresh = scoreboard_agrees("score", (2, 0), reads=2)
     assert fresh(draft, disagreeing, with_read) == "retracted"
+
+
+# --- plausibility guards: a graphic or a torn frame must not move the game state ---------
+
+
+def _obs(t, h, a, c, p, conf=1.0, i=0):
+    sb = ScoreboardState(home=h, away=a, clock_s=c, period=p, confidence=conf, raw=[])
+    return Observation(frame_index=i, t_pts=t, t_wall=NOW, scoreboard=sb)
+
+
+def test_read_without_a_clock_does_not_change_scores():
+    plugin = BasketballPlugin(load_league("pba"))
+    state = plugin.update_state(GameState(), _obs(0, 13, 13, 379.0, 1))
+    graphic = plugin.update_state(state, _obs(1, 1, 1, None, None, conf=1.0))
+    assert graphic.score() == (13, 13) and graphic.period == 1
+
+
+def test_both_scores_jumping_needs_full_agreement():
+    plugin = BasketballPlugin(load_league("pba"))
+    state = plugin.update_state(GameState(), _obs(0, 13, 13, 379.0, 1))
+    weak = plugin.update_state(state, _obs(1, 1, 1, 300.0, 1, conf=0.6))
+    assert weak.score() == (13, 13)
+    strong = plugin.update_state(state, _obs(2, 40, 38, 100.0, 2, conf=1.0))  # rejoined after a long cut
+    assert strong.score() == (40, 38)
+
+
+def test_single_side_change_is_applied_at_normal_confidence():
+    plugin = BasketballPlugin(load_league("pba"))
+    state = plugin.update_state(GameState(), _obs(0, 13, 13, 379.0, 1))
+    new = plugin.update_state(state, _obs(1, 13, 15, 360.0, 1, conf=0.6))
+    assert new.score() == (13, 15)
+
+
+def test_period_can_only_advance_by_one():
+    plugin = BasketballPlugin(load_league("pba"))
+    state = plugin.update_state(GameState(), _obs(0, 13, 13, 379.0, 1))
+    bogus = plugin.update_state(state, _obs(1, 13, 13, 379.0, 5, conf=1.0))
+    assert bogus.period == 1
+    nxt = plugin.update_state(state, _obs(2, 13, 13, 600.0, 2, conf=1.0))
+    assert nxt.period == 2
+    rejoin = plugin.update_state(GameState(), _obs(3, 50, 48, 120.0, 4, conf=1.0))  # no prior period: accept
+    assert rejoin.period == 4

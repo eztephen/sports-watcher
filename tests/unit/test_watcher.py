@@ -1,13 +1,13 @@
-from sports_watcher.config import load_league
 from sports_watcher.events.model import EventStatus
 from sports_watcher.ingest.base import SourceSpec
 from sports_watcher.ingest.factory import register_source
 from sports_watcher.watcher import GameWatcher
+from tests.helpers.leagues import fixture_league
 from tests.helpers.scoreboard_images import boxes
 from tests.helpers.sources import FailingStubSource, StubSource
 from tests.helpers.text_readers import ScriptedTextReader
 
-PBA = load_league("pba")
+PBA = fixture_league("pba")
 
 
 def _no_orphans(events):

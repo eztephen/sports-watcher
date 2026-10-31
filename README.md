@@ -87,8 +87,24 @@ Two ways to describe a broadcaster's scoreboard in the league YAML:
   which score is the home team. Works when every field is a word or multi-digit number.
 - `fields` (preferred): one box per field (`home`, `away`, `clock`, `period`,
   `shot_clock`), each read with recognition only. Needed when scores are large single
-  digits, which text detectors miss. `configs/leagues/nba.yaml` is calibrated this way
-  from the NBA Cup broadcast; the PBA One Sports entry is still a placeholder.
+  digits, which text detectors miss. Both shipped broadcasters are calibrated this way:
+  `configs/leagues/nba.yaml` from the NBA Cup broadcast and `configs/leagues/pba.yaml`
+  from the One Sports PBA feed (top row away, bottom row home).
+
+Reads are also gated for plausibility in the basketball plug-in: a read without a game
+clock (a full-screen graphic) is ignored, the period may only advance by one, and a read
+where both scores jumped at once needs a fully agreeing vote window.
+
+## Golden clips
+
+`data/golden/` holds the first golden clip's truth and metadata (committed) for
+`pba_ros_cvg_q1.mp4` (not committed). Re-create the video with:
+
+```bash
+./.venv/bin/yt-dlp -f "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080]" --merge-output-format mp4 \
+  --download-sections "*00:25:00-00:27:00" -o "data/golden/pba_ros_cvg_q1.%(ext)s" \
+  "https://www.youtube.com/watch?v=TyYUFM0h-6c"
+```
 
 ## Event lifecycle
 

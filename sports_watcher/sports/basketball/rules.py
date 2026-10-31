@@ -25,8 +25,9 @@ def scoreboard_agrees(field: str, expected, reads: int = 2) -> Confirmer:
 
     def confirm(draft: EventDraft, state: GameState, obs: Observation) -> Verdict:
         nonlocal seen
-        if obs.scoreboard is None or obs.scoreboard.confidence < MIN_SCOREBOARD_CONFIDENCE:
-            return "pending"
+        sb = obs.scoreboard
+        if sb is None or sb.confidence < MIN_SCOREBOARD_CONFIDENCE or sb.clock_s is None:
+            return "pending"  # no confident game-state read: no vote either way
         value = state.score() if field == "score" else getattr(state, field)
         if value != expected:
             return "retracted"

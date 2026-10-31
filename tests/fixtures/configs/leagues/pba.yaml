@@ -1,0 +1,18 @@
+# Test copy of the PBA league: same dimensions, but the broadcaster uses the plain
+# detection ROI over the whole frame so scripted text readers (which script detection
+# boxes) drive the pipeline. Production calibration lives in configs/leagues/pba.yaml.
+name: pba
+court_length_m: 28.0
+court_width_m: 15.0
+three_point_radius_m: 6.75
+three_point_corner_m: 6.60
+period_length_s: 600
+periods: 4
+overtime_length_s: 300
+shot_clock_s: 24
+asr_languages: [en, tl]
+broadcasters:
+  one_sports:
+    scoreboard_roi: {x: 0.0, y: 0.0, w: 1.0, h: 1.0}
+    home_side: left
+    shot_clock_visible: true
