@@ -1,0 +1,4 @@
+# Defaults documented here; M0 wires them as GameWatcher constructor parameters.
+ocr_every_n_frames: 5
+provisional_ttl_s: 4.0
+vote_window: 5

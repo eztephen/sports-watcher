@@ -1,0 +1,15 @@
+name: nba
+court_length_m: 28.65
+court_width_m: 15.24
+three_point_radius_m: 7.24
+three_point_corner_m: 6.71
+period_length_s: 720
+periods: 4
+overtime_length_s: 300
+shot_clock_s: 24
+asr_languages: [en]
+broadcasters:
+  generic:
+    scoreboard_roi: {x: 0.02, y: 0.86, w: 0.40, h: 0.10}
+    home_side: left
+    shot_clock_visible: true
