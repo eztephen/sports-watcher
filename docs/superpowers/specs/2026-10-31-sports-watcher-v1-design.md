@@ -2,6 +2,8 @@
 
 Date: 2026-10-31. Status: approved in conversation, awaiting written review.
 Research behind every choice here: `docs/research/2026-10-31-sports-watcher-research.md`.
+M1 addendum: `2026-10-31-sports-watcher-m1-vision-design.md` revises sections 4, 5.2,
+5.4 to 5.7, 7, 8 and 10 for the vision milestone.
 
 ## 1. Purpose
 
