@@ -86,30 +86,21 @@ class Event(BaseModel):
     source: SourceInfo
 
     def confirmed_copy(
-        self,
-        seq: int,
-        t_pts: float,
-        t_wall: datetime,
-        emitted_wall: datetime,
-        confidence: float | None = None,
+        self, seq: int, emitted_wall: datetime, confidence: float | None = None
     ) -> Event:
+        """The terminal event keeps the original ``t_pts``/``t_wall`` (when the action
+        happened); ``emitted_wall`` records when it was confirmed."""
         return self._successor(
             seq=seq,
-            t_pts=t_pts,
-            t_wall=t_wall,
             emitted_wall=emitted_wall,
             status=EventStatus.confirmed,
             reason=None,
             confidence=self.confidence if confidence is None else confidence,
         )
 
-    def retracted_copy(
-        self, seq: int, t_pts: float, t_wall: datetime, emitted_wall: datetime, reason: str
-    ) -> Event:
+    def retracted_copy(self, seq: int, emitted_wall: datetime, reason: str) -> Event:
         return self._successor(
             seq=seq,
-            t_pts=t_pts,
-            t_wall=t_wall,
             emitted_wall=emitted_wall,
             status=EventStatus.retracted,
             reason=reason,

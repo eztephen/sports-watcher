@@ -49,19 +49,19 @@ class EventEngine:
         emitted: list[Event] = []
         resolved, self._pending = resolve_pending(self._pending, new, obs, obs.t_pts)
         for pending, resolution in resolved:
-            emitted.append(self._terminal(pending, resolution, obs.t_pts, obs.t_wall))
+            emitted.append(self._terminal(pending, resolution))
 
         for rule in self.plugin.rules():
             for draft in rule(prev, new, obs):
                 emitted.append(self._provisional(draft, obs))
         return emitted
 
-    def finish(self, t_pts: float, t_wall: datetime) -> list[Event]:
+    def finish(self) -> list[Event]:
         """Retract everything still pending and close the sinks."""
         if self._finished:
             return []
         self._finished = True
-        out = [self._terminal(p, "stream_ended", t_pts, t_wall) for p in self._pending]
+        out = [self._terminal(p, "stream_ended") for p in self._pending]
         self._pending = []
         for sink in self.sinks:
             sink.close()
@@ -99,16 +99,14 @@ class EventEngine:
         self._emit(event)
         return event
 
-    def _terminal(self, pending: PendingEvent, resolution: str, t_pts: float, t_wall: datetime) -> Event:
+    def _terminal(self, pending: PendingEvent, resolution: str) -> Event:
         now = datetime.now(UTC)
         if resolution == "confirmed":
-            event = pending.event.confirmed_copy(
-                seq=self._next_seq(), t_pts=t_pts, t_wall=t_wall, emitted_wall=now
-            )
+            event = pending.event.confirmed_copy(seq=self._next_seq(), emitted_wall=now)
         else:
             reason = RETRACT_REASONS.get(resolution, resolution)
             event = pending.event.retracted_copy(
-                seq=self._next_seq(), t_pts=t_pts, t_wall=t_wall, emitted_wall=now, reason=reason
+                seq=self._next_seq(), emitted_wall=now, reason=reason
             )
         self._emit(event)
         return event

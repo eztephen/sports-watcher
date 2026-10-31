@@ -37,7 +37,7 @@ def test_provisional_then_confirmed_with_supersedes():
     later = eng.step(obs(2, 1.2, 2, 0, 597, 1)) + eng.step(obs(3, 1.4, 2, 0, 596, 1))
     conf = next(e for e in later if e.supersedes == prov.id)
     assert conf.status == EventStatus.confirmed and conf.seq > prov.seq
-    assert conf.type == "score_change" and conf.evidence == prov.evidence and conf.t_pts == 1.4
+    assert conf.type == "score_change" and conf.evidence == prov.evidence and conf.t_pts == 1.0
     assert eng.state.score() == (2, 0)
 
 
@@ -64,9 +64,9 @@ def test_finish_retracts_pending_with_stream_ended():
     eng = make_engine()
     eng.step(obs(0, 0.0, 0, 0, 600, 1))
     prov = next(e for e in eng.step(obs(1, 1.0, 2, 0, 598, 1)) if e.type == "score_change")
-    out = eng.finish(t_pts=1.5, t_wall=NOW + timedelta(seconds=1.5))
+    out = eng.finish()
     assert [e.reason for e in out] == ["stream_ended"] and out[0].supersedes == prov.id
-    assert eng.finish(t_pts=1.6, t_wall=NOW) == []
+    assert eng.finish() == []
 
 
 def test_period_start_is_confirmed_by_the_next_read():
@@ -84,7 +84,7 @@ def test_seq_strictly_increasing_and_every_event_reaches_sinks(tmp_path):
     eng = make_engine(sinks=[mem, JsonlSink(path)])
     for i, (t, h, a, c) in enumerate([(0, 0, 0, 600), (1, 2, 0, 598), (1.2, 2, 0, 597), (1.4, 2, 0, 596), (2, 2, 3, 590)]):
         eng.step(obs(i, t, h, a, c, 1))
-    eng.finish(3.0, NOW)
+    eng.finish()
     seqs = [e.seq for e in mem.events]
     assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs) and len(seqs) >= 5
     lines = path.read_text().strip().splitlines()

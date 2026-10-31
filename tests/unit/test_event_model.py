@@ -4,14 +4,15 @@ from tests.helpers.events import NOW, make_event
 
 def test_confirmed_copy_supersedes_and_roundtrips():
     e = make_event(type="score_change", status=EventStatus.provisional)
-    c = e.confirmed_copy(seq=e.seq + 1, t_pts=e.t_pts + 0.2, t_wall=e.t_wall, emitted_wall=e.t_wall)
+    c = e.confirmed_copy(seq=e.seq + 1, emitted_wall=e.t_wall)
     assert c.supersedes == e.id and c.id != e.id and c.status == EventStatus.confirmed
     assert c.seq == e.seq + 1 and c.type == e.type and c.evidence == e.evidence
+    assert c.t_pts == e.t_pts and c.t_wall == e.t_wall
     assert Event.model_validate_json(c.model_dump_json()) == c
 
 
 def test_retracted_copy_carries_reason():
-    r = make_event().retracted_copy(seq=2, t_pts=1.0, t_wall=NOW, emitted_wall=NOW, reason="ttl")
+    r = make_event().retracted_copy(seq=2, emitted_wall=NOW, reason="ttl")
     assert r.status == EventStatus.retracted and r.reason == "ttl"
 
 
