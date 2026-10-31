@@ -11,10 +11,11 @@ import re
 from collections import Counter, deque
 from typing import Protocol
 
+import cv2
 import numpy as np
 from pydantic import BaseModel
 
-from sports_watcher.config import BroadcasterConfig, Roi
+from sports_watcher.config import BroadcasterConfig, FieldRois, Roi
 
 TextBox = tuple[str, tuple[int, int, int, int], float]  # text, (x, y, w, h), confidence
 
@@ -39,7 +40,13 @@ class ScoreboardState(BaseModel):
 
 
 class TextReader(Protocol):
-    def read(self, image_bgr: np.ndarray) -> list[TextBox]: ...
+    def read(self, image_bgr: np.ndarray) -> list[TextBox]:
+        """Detect and recognise every text box in the image."""
+        ...
+
+    def read_line(self, image_bgr: np.ndarray) -> tuple[str, float]:
+        """Recognise the image as one line of text, no detection. ("" , 0.0) when empty."""
+        ...
 
 
 class RapidOcrTextReader:
@@ -50,6 +57,8 @@ class RapidOcrTextReader:
 
         self._ocr = RapidOCR()
 
+    LINE_UPSCALE = 3
+
     def read(self, image_bgr: np.ndarray) -> list[TextBox]:
         result, _elapsed = self._ocr(image_bgr)
         out: list[TextBox] = []
@@ -59,6 +68,18 @@ class RapidOcrTextReader:
             x, y = int(min(xs)), int(min(ys))
             out.append((str(text).strip(), (x, y, int(max(xs) - x), int(max(ys) - y)), float(conf)))
         return out
+
+    def read_line(self, image_bgr: np.ndarray) -> tuple[str, float]:
+        if image_bgr.size == 0:
+            return "", 0.0
+        img = cv2.resize(
+            image_bgr, None, fx=self.LINE_UPSCALE, fy=self.LINE_UPSCALE, interpolation=cv2.INTER_CUBIC
+        )
+        result, _elapsed = self._ocr(img, use_det=False, use_cls=False)
+        if not result:
+            return "", 0.0
+        text, conf = result[0][0], result[0][1]
+        return str(text).strip(), float(conf)
 
 
 def crop_roi(image: np.ndarray, roi: Roi) -> np.ndarray:
@@ -153,13 +174,46 @@ class ScoreboardReader:
         self._window: deque[ScoreboardState] = deque(maxlen=vote_window)
 
     def read(self, frame_bgr: np.ndarray) -> ScoreboardState:
-        crop = crop_roi(frame_bgr, self._broadcaster.scoreboard_roi)
-        boxes = self._reader.read(crop) if crop.size else []
-        parsed = parse_scoreboard(
-            boxes, self._broadcaster.home_side, self._broadcaster.shot_clock_visible
-        )
+        if self._broadcaster.fields is not None:
+            parsed = self._read_fields(frame_bgr, self._broadcaster.fields)
+        else:
+            crop = crop_roi(frame_bgr, self._broadcaster.scoreboard_roi)
+            boxes = self._reader.read(crop) if crop.size else []
+            parsed = parse_scoreboard(
+                boxes, self._broadcaster.home_side, self._broadcaster.shot_clock_visible
+            )
         self._window.append(parsed)
         return self._vote(parsed)
+
+    def _read_fields(self, frame_bgr: np.ndarray, fields: FieldRois) -> ScoreboardState:
+        """Recognition-only read of each configured field box, in a fixed order."""
+        raw: list[str] = []
+        confs: list[float] = []
+
+        def line(roi: Roi | None) -> str | None:
+            if roi is None:
+                return None
+            text, conf = self._reader.read_line(crop_roi(frame_bgr, roi))
+            raw.append(text)
+            confs.append(conf)
+            return text
+
+        home_t, away_t = line(fields.home), line(fields.away)
+        clock_t, period_t, shot_t = line(fields.clock), line(fields.period), line(fields.shot_clock)
+        home = int(home_t) if home_t and _INT.match(home_t) else None
+        away = int(away_t) if away_t and _INT.match(away_t) else None
+        shot = None
+        if shot_t and _INT.match(shot_t) and int(shot_t) <= SHOT_CLOCK_MAX:
+            shot = float(int(shot_t))
+        return ScoreboardState(
+            home=home,
+            away=away,
+            clock_s=parse_clock(clock_t) if clock_t else None,
+            period=parse_period(period_t) if period_t else None,
+            shot_clock_s=shot,
+            confidence=(confs[0] + confs[1]) / 2 if home is not None and away is not None else 0.0,
+            raw=raw,
+        )
 
     def _vote(self, latest: ScoreboardState) -> ScoreboardState:
         window = list(self._window)

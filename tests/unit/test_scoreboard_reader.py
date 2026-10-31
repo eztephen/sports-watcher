@@ -28,3 +28,60 @@ def test_crop_roi_uses_fractions_of_the_frame():
     frame = np.zeros((100, 200, 3), np.uint8)
     crop = crop_roi(frame, Roi(x=0.5, y=0.25, w=0.25, h=0.5))
     assert crop.shape == (50, 50, 3)
+
+
+class SeqLineReader:
+    """read_line returns scripted (text, conf) pairs in call order; read() is unused."""
+
+    def __init__(self, lines):
+        self._lines = list(lines)
+        self.calls = 0
+
+    def read(self, image_bgr):
+        raise AssertionError("detection path must not be used when field ROIs are set")
+
+    def read_line(self, image_bgr):
+        text, conf = self._lines[self.calls % len(self._lines)]
+        self.calls += 1
+        return text, conf
+
+
+def _fields_broadcaster():
+    from sports_watcher.config import BroadcasterConfig, FieldRois, Roi
+
+    box = Roi(x=0.0, y=0.0, w=0.1, h=0.5)
+    return BroadcasterConfig(
+        scoreboard_roi=Roi(x=0.0, y=0.0, w=1.0, h=1.0),
+        home_side="right",
+        fields=FieldRois(home=box, away=box, clock=box, period=box, shot_clock=box),
+    )
+
+
+def test_reader_uses_field_rois_with_recognition_only_reads():
+    reader = SeqLineReader([("2", 0.99), ("7", 0.99), ("10:05", 0.99), ("1sT", 0.84), ("6", 0.95)])
+    r = ScoreboardReader(reader, broadcaster=_fields_broadcaster(), vote_window=1)
+    st = r.read(BLANK)
+    assert (st.home, st.away, st.clock_s, st.period, st.shot_clock_s) == (2, 7, 605.0, 1, 6.0)
+    assert st.raw == ["2", "7", "10:05", "1sT", "6"] and st.confidence == 1.0
+    assert reader.calls == 5
+
+
+def test_field_reads_tolerate_garbage_and_still_vote():
+    good = [("2", 0.99), ("7", 0.99), ("10:05", 0.99), ("1ST", 0.9), ("6", 0.95)]
+    garbage = [("C", 0.3), ("7", 0.99), ("", 0.0), ("WEST", 0.5), ("", 0.0)]
+    reader = SeqLineReader(good + good + garbage + good + good)
+    r = ScoreboardReader(reader, broadcaster=_fields_broadcaster(), vote_window=5)
+    states = [r.read(BLANK) for _ in range(5)]
+    assert states[2].home == 2 and states[-1].home == 2 and states[-1].confidence == 0.8
+    assert states[2].clock_s == 605.0  # latest non-None clock survives a blank read
+
+
+def test_field_rois_without_shot_clock_field():
+    from sports_watcher.config import BroadcasterConfig, FieldRois, Roi
+
+    box = Roi(x=0.0, y=0.0, w=0.1, h=0.5)
+    bc = BroadcasterConfig(scoreboard_roi=box, fields=FieldRois(home=box, away=box, clock=box))
+    reader = SeqLineReader([("30", 0.9), ("28", 0.9), ("0:59.8", 0.9)])
+    st = ScoreboardReader(reader, broadcaster=bc, vote_window=1).read(BLANK)
+    assert (st.home, st.away, st.clock_s, st.period, st.shot_clock_s) == (30, 28, 59.8, None, None)
+    assert reader.calls == 3

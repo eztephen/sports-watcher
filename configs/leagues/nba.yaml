@@ -9,7 +9,16 @@ overtime_length_s: 300
 shot_clock_s: 24
 asr_languages: [en]
 broadcasters:
+  # NBA national / NBA Cup feed as seen on the official NBA YouTube highlights:
+  # centred bottom bug, away team on the left, home team on the right, clock and
+  # period in the middle, a records row underneath (excluded from the ROI).
   generic:
-    scoreboard_roi: {x: 0.02, y: 0.86, w: 0.40, h: 0.10}
-    home_side: left
+    scoreboard_roi: {x: 0.38, y: 0.845, w: 0.24, h: 0.08}
+    home_side: right
     shot_clock_visible: true
+    fields:
+      away:       {x: 0.405, y: 0.850, w: 0.050, h: 0.050}
+      home:       {x: 0.555, y: 0.850, w: 0.050, h: 0.050}
+      clock:      {x: 0.468, y: 0.846, w: 0.064, h: 0.036}
+      period:     {x: 0.470, y: 0.880, w: 0.030, h: 0.026}
+      shot_clock: {x: 0.503, y: 0.880, w: 0.018, h: 0.026}

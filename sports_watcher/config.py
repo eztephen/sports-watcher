@@ -30,10 +30,22 @@ class Roi(BaseModel):
     h: float
 
 
+class FieldRois(BaseModel):
+    """One box per scoreboard field, as fractions of the full frame. When set, each box
+    is read with recognition only, which is what large single digits need."""
+
+    home: Roi
+    away: Roi
+    clock: Roi | None = None
+    period: Roi | None = None
+    shot_clock: Roi | None = None
+
+
 class BroadcasterConfig(BaseModel):
     scoreboard_roi: Roi
     home_side: Literal["left", "right"] = "left"
     shot_clock_visible: bool = True
+    fields: FieldRois | None = None
 
 
 class LeagueConfig(BaseModel):
