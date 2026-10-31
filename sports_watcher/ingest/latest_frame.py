@@ -72,9 +72,15 @@ class LatestFrameReader:
         with self._cond:
             return self._exhausted and self._seq <= self._consumed_seq
 
-    def stop(self) -> None:
+    def stop(self, join_timeout: float = 2.0) -> None:
+        """Stop handing out frames and wait up to ``join_timeout`` for the producer thread
+        to leave the source, so the caller can close the source safely afterwards."""
         with self._cond:
             self._stopped = True
             self._cond.notify_all()
         if self._thread.is_alive() and threading.current_thread() is not self._thread:
-            self._thread.join(timeout=2.0)
+            self._thread.join(timeout=join_timeout)
+
+    @property
+    def producer_alive(self) -> bool:
+        return self._thread.is_alive()

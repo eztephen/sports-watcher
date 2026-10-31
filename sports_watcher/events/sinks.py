@@ -70,6 +70,11 @@ class Broadcaster:
             self._subs.append(q)
         return q
 
+    @property
+    def subscriber_count(self) -> int:
+        with self._lock:
+            return len(self._subs)
+
     def unsubscribe(self, q: queue.Queue) -> None:
         with self._lock:
             if q in self._subs:

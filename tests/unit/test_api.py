@@ -14,14 +14,14 @@ def scripted():
     return ScriptedTextReader({0: boxes(0, 0, "10:00", "1st"), 10: boxes(3, 0, "9:55", "1st")})
 
 
-def make_client(n_frames: int = 200) -> TestClient:
+def make_client(n_frames: int = 200) -> tuple[TestClient, JobManager]:
     register_source("stub", lambda spec: StubSource(n=n_frames))
     jobs = JobManager(Settings(_env_file=None), text_reader_factory=scripted, ocr_every_n_frames=5)
-    return TestClient(create_app(settings=Settings(_env_file=None), jobs=jobs))
+    return TestClient(create_app(settings=Settings(_env_file=None), jobs=jobs)), jobs
 
 
 def test_game_lifecycle_over_http_and_websocket():
-    c = make_client()
+    c, _ = make_client()
     body = {"source": {"kind": "stub"}, "home": "TNT", "away": "Magnolia"}
     created = c.post("/api/v1/games", json=body)
     assert created.status_code == 201
@@ -44,7 +44,7 @@ def test_game_lifecycle_over_http_and_websocket():
 
 
 def test_websocket_streams_backfill_then_closes_when_the_game_ends():
-    c = make_client(n_frames=60)
+    c, _ = make_client(n_frames=60)
     gid = c.post("/api/v1/games", json={"source": {"kind": "stub"}, "home": "A", "away": "B"}).json()["game_id"]
     wait_until(lambda: c.get(f"/api/v1/games/{gid}").json()["status"]["state"] == "ended")
     expected = [e["seq"] for e in c.get(f"/api/v1/games/{gid}/events").json()]
@@ -54,7 +54,7 @@ def test_websocket_streams_backfill_then_closes_when_the_game_ends():
 
 
 def test_stop_endpoint_ends_a_running_job():
-    c = make_client(n_frames=10_000_000)
+    c, _ = make_client(n_frames=10_000_000)
     gid = c.post("/api/v1/games", json={"source": {"kind": "stub"}, "home": "A", "away": "B"}).json()["game_id"]
     wait_until(lambda: c.get(f"/api/v1/games/{gid}").json()["status"]["state"] == "running")
     assert c.post(f"/api/v1/games/{gid}/stop").status_code == 202
@@ -63,8 +63,19 @@ def test_stop_endpoint_ends_a_running_job():
 
 
 def test_create_rejects_unknown_league_and_broadcaster():
-    c = make_client()
+    c, _ = make_client()
     bad_league = c.post("/api/v1/games", json={"source": {"kind": "stub"}, "home": "A", "away": "B", "league": "nope"})
     assert bad_league.status_code == 400 and "league" in bad_league.json()["detail"]
     bad_bc = c.post("/api/v1/games", json={"source": {"kind": "stub"}, "home": "A", "away": "B", "broadcaster": "nope"})
     assert bad_bc.status_code == 400 and "broadcaster" in bad_bc.json()["detail"]
+
+
+def test_websocket_client_disconnect_releases_the_subscription():
+    c, jobs = make_client(n_frames=10_000_000)
+    gid = c.post("/api/v1/games", json={"source": {"kind": "stub"}, "home": "A", "away": "B"}).json()["game_id"]
+    with c.websocket_connect(f"/api/v1/games/{gid}/events") as ws:
+        ws.receive_json()
+    watcher = jobs.get(gid).watcher
+    wait_until(lambda: watcher.broadcaster.subscriber_count == 0, timeout=5)
+    c.post(f"/api/v1/games/{gid}/stop")
+    wait_until(lambda: c.get(f"/api/v1/games/{gid}").json()["status"]["state"] == "ended")

@@ -54,10 +54,14 @@ def main(argv: list[str] | None = None) -> int:
         sinks=[JsonlSink(out)],
         ocr_every_n_frames=args.ocr_every,
     )
+    thread = watcher.start_in_thread()
     try:
-        watcher.run()
+        while thread.is_alive():
+            thread.join(timeout=0.5)
     except KeyboardInterrupt:
+        print("stopping...", file=sys.stderr)
         watcher.stop()
+        thread.join(timeout=30)
     status = watcher.status()
     print(json.dumps({"status": status.model_dump(), "firsts": watcher.firsts().model_dump()}, indent=2))
     print(f"events written to {out}", file=sys.stderr)

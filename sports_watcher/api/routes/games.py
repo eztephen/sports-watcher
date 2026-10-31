@@ -81,8 +81,9 @@ def stop_game(game_id: str, request: Request) -> dict[str, str]:
 
 @router.websocket("/{game_id}/events")
 async def stream_events(websocket: WebSocket, game_id: str, since_seq: int = 0) -> None:
-    """Backfill from ``since_seq``, then stream live events; closes once the game has
-    ended and everything has been sent."""
+    """Backfill from ``since_seq``, then stream live events. Closes once the game has
+    ended and everything has been sent, or as soon as the client goes away (a receiver
+    task watches for the disconnect so a quiet game never keeps a zombie subscription)."""
     jobs: JobManager = websocket.app.state.jobs
     try:
         job = jobs.get(game_id)
@@ -93,16 +94,24 @@ async def stream_events(websocket: WebSocket, game_id: str, since_seq: int = 0) 
     await websocket.accept()
     live = watcher.broadcaster.subscribe()
     last_sent = since_seq
+    receiver = asyncio.ensure_future(websocket.receive())
     try:
         for event in watcher.events_since(since_seq):
             await websocket.send_json(event.model_dump(mode="json"))
             last_sent = event.seq
         while True:
+            getter = asyncio.ensure_future(asyncio.to_thread(live.get, True, WS_POLL_S))
+            done, _pending = await asyncio.wait({receiver, getter}, return_when=asyncio.FIRST_COMPLETED)
+            if receiver in done:
+                if _client_gone(receiver):
+                    getter.cancel()
+                    return
+                receiver = asyncio.ensure_future(websocket.receive())  # ignore client chatter
             try:
-                event = await asyncio.to_thread(live.get, True, WS_POLL_S)
+                event = await getter
             except queue.Empty:
                 if watcher.status().state in ("ended", "failed") and live.empty():
-                    break
+                    return
                 continue
             if event.seq <= last_sent:
                 continue
@@ -111,6 +120,18 @@ async def stream_events(websocket: WebSocket, game_id: str, since_seq: int = 0) 
     except (WebSocketDisconnect, RuntimeError):
         return
     finally:
+        receiver.cancel()
         watcher.broadcaster.unsubscribe(live)
         with contextlib.suppress(Exception):
             await websocket.close()
+
+
+def _client_gone(receiver: asyncio.Future) -> bool:
+    """True when the receiver finished with a disconnect message or an error."""
+    if receiver.cancelled():
+        return True
+    exc = receiver.exception()
+    if exc is not None:
+        return True
+    message = receiver.result()
+    return isinstance(message, dict) and message.get("type") == "websocket.disconnect"

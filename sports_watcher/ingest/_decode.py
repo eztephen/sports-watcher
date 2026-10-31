@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import av
 import numpy as np
@@ -14,16 +14,31 @@ from sports_watcher.ingest.base import AudioChunk, Frame
 AUDIO_RATE = 16000
 
 
-def open_container(target: str, options: dict[str, str] | None = None) -> av.container.InputContainer:
-    return av.open(target, mode="r", options=options or {})
+def open_container(
+    target: str,
+    options: dict[str, str] | None = None,
+    timeout: tuple[float, float] | None = None,
+) -> av.container.InputContainer:
+    """``timeout`` is PyAV's ``(open_s, read_s)``; set it for network sources so a stalled
+    read returns instead of blocking a thread forever."""
+    kwargs: dict = {"mode": "r", "options": options or {}}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return av.open(target, **kwargs)
 
 
 def decode_frames(
-    container: av.container.InputContainer, start_wall: datetime, realtime: bool = False
+    container: av.container.InputContainer,
+    start_wall: datetime,
+    realtime: bool = False,
+    live: bool = False,
 ) -> Iterator[Frame]:
-    """Yield BGR frames with stream pts; ``wall`` is ``start_wall`` plus elapsed stream time.
+    """Yield BGR frames with stream pts.
 
-    With ``realtime`` the loop sleeps so frames are released no faster than their pts.
+    ``wall`` is the arrival time for live sources (``live=True``), so it never runs
+    backwards when the stream's pts jump; for files it is ``start_wall`` plus elapsed
+    stream time, which keeps offline runs deterministic. With ``realtime`` the loop
+    sleeps so file frames are released no faster than their pts.
     """
     stream = container.streams.video[0]
     stream.thread_type = "AUTO"
@@ -41,12 +56,8 @@ def decode_frames(
             ahead = elapsed - (time.monotonic() - t0)
             if ahead > 0:
                 time.sleep(ahead)
-        yield Frame(
-            index=index,
-            pts_s=pts_s,
-            wall=start_wall + timedelta(seconds=elapsed),
-            image=frame.to_ndarray(format="bgr24"),
-        )
+        wall = datetime.now(UTC) if live else start_wall + timedelta(seconds=elapsed)
+        yield Frame(index=index, pts_s=pts_s, wall=wall, image=frame.to_ndarray(format="bgr24"))
         index += 1
 
 

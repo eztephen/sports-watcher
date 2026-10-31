@@ -10,6 +10,9 @@ from sports_watcher.clock import LatencyClass
 from sports_watcher.ingest._decode import decode_audio, decode_frames, open_container
 from sports_watcher.ingest.base import AudioChunk, Frame
 
+OPEN_TIMEOUT_S = 10.0
+READ_TIMEOUT_S = 10.0
+
 BASE_OPTIONS: dict[str, str] = {
     "fflags": "nobuffer",
     "flags": "low_delay",
@@ -49,26 +52,37 @@ class UrlSource:
         self._containers: list = []
         self._start_wall = datetime.now(UTC)
 
+    @property
+    def live(self) -> bool:
+        return self.latency_class != LatencyClass.FILE
+
     def _open_options(self) -> dict[str, str]:
         if self._options is not None:
             return self._options
         # Local paths get no live options; libavformat would only warn about them.
-        return {} if self.latency_class == LatencyClass.FILE else options_for(self.url)
+        return {} if not self.live else options_for(self.url)
+
+    def open_kwargs(self) -> dict:
+        """Keyword arguments for ``open_container``: options, plus read timeouts when live."""
+        kwargs: dict = {"options": self._open_options()}
+        if self.live:
+            kwargs["timeout"] = (OPEN_TIMEOUT_S, READ_TIMEOUT_S)
+        return kwargs
 
     def open(self) -> None:
         self._start_wall = datetime.now(UTC)
 
     def frames(self) -> Iterator[Frame]:
-        container = open_container(self.url, self._open_options())
+        container = open_container(self.url, **self.open_kwargs())
         self._containers.append(container)
         try:
-            yield from decode_frames(container, self._start_wall, realtime=False)
+            yield from decode_frames(container, self._start_wall, realtime=False, live=self.live)
         finally:
             container.close()
             self._containers.remove(container)
 
     def audio(self) -> Iterator[AudioChunk]:
-        container = open_container(self.url, self._open_options())
+        container = open_container(self.url, **self.open_kwargs())
         self._containers.append(container)
         try:
             yield from decode_audio(container)

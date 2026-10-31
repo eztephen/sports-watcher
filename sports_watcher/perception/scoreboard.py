@@ -165,7 +165,6 @@ def _mode(values: list) -> tuple[object, int]:
 
 
 class ScoreboardReader:
-    VOTED_FIELDS = ("home", "away", "period")
     LATEST_FIELDS = ("clock_s", "shot_clock_s")
 
     def __init__(self, reader: TextReader, broadcaster: BroadcasterConfig, vote_window: int = 5) -> None:
@@ -216,14 +215,23 @@ class ScoreboardReader:
         )
 
     def _vote(self, latest: ScoreboardState) -> ScoreboardState:
+        """Majority vote over the window. Confidence is the share of the *full* window
+        capacity that agrees on both scores, so one or two reads after a join never count
+        as confident, and a blank or unreadable period never blocks the scores."""
         window = list(self._window)
-        voted = {f: _mode([getattr(s, f) for s in window])[0] for f in self.VOTED_FIELDS}
-        winning = tuple(voted[f] for f in self.VOTED_FIELDS)
-        agree = sum(1 for s in window if tuple(getattr(s, f) for f in self.VOTED_FIELDS) == winning)
+        capacity = self._window.maxlen or len(window)
+        home, _ = _mode([s.home for s in window])
+        away, _ = _mode([s.away for s in window])
+        period, _ = _mode([s.period for s in window])
+        if home is None or away is None:
+            agree = 0
+        else:
+            agree = sum(1 for s in window if (s.home, s.away) == (home, away))
         latest_vals = {
             f: next((getattr(s, f) for s in reversed(window) if getattr(s, f) is not None), None)
             for f in self.LATEST_FIELDS
         }
         return ScoreboardState(
-            **voted, **latest_vals, confidence=agree / len(window), raw=latest.raw
+            home=home, away=away, period=period, **latest_vals,
+            confidence=agree / capacity, raw=latest.raw,
         )

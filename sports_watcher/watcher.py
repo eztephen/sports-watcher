@@ -19,6 +19,7 @@ from sports_watcher.events.sinks import Broadcaster, EventSink, MemorySink
 from sports_watcher.ingest.base import Frame, FrameSource, SourceSpec
 from sports_watcher.ingest.factory import open_source
 from sports_watcher.ingest.latest_frame import LatestFrameReader
+from sports_watcher.ingest.url import READ_TIMEOUT_S
 from sports_watcher.perception.scoreboard import ScoreboardReader, TextReader
 from sports_watcher.sports.base import Observation
 from sports_watcher.sports.basketball.plugin import BasketballPlugin
@@ -59,6 +60,7 @@ class GameWatcher:
         vote_window: int = 5,
         reconnect_backoff_s: float = 1.0,
         stall_timeout_s: float = 30.0,
+        healthy_frames_to_reset: int = 300,
     ) -> None:
         self.spec = spec
         self.league = league
@@ -72,6 +74,7 @@ class GameWatcher:
         self.vote_window = vote_window
         self.reconnect_backoff_s = reconnect_backoff_s
         self.stall_timeout_s = stall_timeout_s
+        self.healthy_frames_to_reset = healthy_frames_to_reset
 
         self._memory = MemorySink()
         self.broadcaster = Broadcaster()
@@ -87,7 +90,10 @@ class GameWatcher:
         self._error: str | None = None
         self._frames_processed = 0
         self._frames_dropped = 0
-        self._reconnects = 0
+        self._reconnects = 0  # lifetime total, reported in status
+        self._consecutive_failures = 0  # the budget max_reconnects applies to these
+        self._frames_since_reconnect = 0
+        self._backoff = reconnect_backoff_s
         self._last_t_pts = 0.0
         self._last_wall = datetime.now(UTC)
 
@@ -102,22 +108,31 @@ class GameWatcher:
         self._stop.set()
 
     def run(self) -> None:
-        backoff = self.reconnect_backoff_s
+        """Blocking. The budget of ``max_reconnects`` applies to consecutive failures;
+        ``healthy_frames_to_reset`` frames in a row reset it, so a long live watch
+        survives any number of separated blips. Every exit path finishes the engine, so
+        no provisional is ever left without a terminal event."""
         try:
             while not self._stop.is_set():
                 error = self._run_once()
                 if error is None or self._stop.is_set():
                     break
-                if not self._can_reconnect() or self._reconnects >= self.max_reconnects:
+                self._consecutive_failures += 1
+                if not self._can_reconnect() or self._consecutive_failures > self.max_reconnects:
                     raise error
                 self._reconnects += 1
+                self._frames_since_reconnect = 0
                 self._note_gap(error)
-                time.sleep(backoff)
-                backoff = min(backoff * 2, self.reconnect_backoff_s * 8)
+                time.sleep(self._backoff)
+                self._backoff = min(self._backoff * 2, self.reconnect_backoff_s * 8)
             self._finish("ended")
         except Exception as exc:  # noqa: BLE001 - every failure ends the job with a reason
             self._error = f"{type(exc).__name__}: {exc}"
             self._finish("failed")
+        except BaseException as exc:  # KeyboardInterrupt, SystemExit: finish, then propagate
+            self._error = f"{type(exc).__name__}: {exc}".rstrip(": ")
+            self._finish("failed")
+            raise
 
     def _run_once(self) -> BaseException | None:
         """Open the source and consume it. Returns the error that ended it, if any."""
@@ -168,12 +183,18 @@ class GameWatcher:
                 if time.monotonic() - last_frame_at > self.stall_timeout_s:
                     raise OSError(f"stream stalled for {self.stall_timeout_s:.0f}s")
         finally:
-            reader.stop()
+            # Wait for the producer to leave av_read_frame (bounded by the read timeout
+            # set on live containers) before the source is closed behind it.
+            reader.stop(join_timeout=READ_TIMEOUT_S + 2.0)
 
     def _process(self, frame: Frame, dropped: int) -> None:
         assert self._engine is not None
         self._frames_dropped += dropped
         self._frames_processed += 1
+        self._frames_since_reconnect += 1
+        if self._frames_since_reconnect >= self.healthy_frames_to_reset:
+            self._consecutive_failures = 0
+            self._backoff = self.reconnect_backoff_s
         scoreboard = None
         if (self._frames_processed - 1) % self.ocr_every_n_frames == 0:
             scoreboard = self._scoreboard_reader().read(frame.image)
