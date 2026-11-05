@@ -33,6 +33,7 @@ class RimInteraction:
     entered_pts: float | None = None
     left_pts: float | None = None
     crossed_pts: float | None = None
+    above_pts: float | None = None  # last time the ball was above the rim inside its span
 
 
 @dataclass
