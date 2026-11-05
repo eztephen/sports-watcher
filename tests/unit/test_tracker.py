@@ -44,7 +44,7 @@ def test_crossing_players_keep_their_ids():
         b = Detection(_box(400 - 10 * i, 100), "player", 0.9)  # right to left
         out = tr.update([a, b], i / 30)
         if out:
-            ids.append(dict((t.track_id, round(t.box[0])) for t in out))
+            ids.append({t.track_id: round(t.box[0]) for t in out})
     first, last = ids[0], ids[-1]
     assert first[1] < first[2] and last[1] > last[2]
 
