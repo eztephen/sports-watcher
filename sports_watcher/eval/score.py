@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from sports_watcher.events.firsts import Firsts
 from sports_watcher.events.model import Event, EventStatus
-from sports_watcher.replay.truth import TruthEvent
+from sports_watcher.replay.truth import CameraSegment, TruthEvent
 
 
 class TypeScore(BaseModel):
@@ -41,7 +41,25 @@ def _compatible(truth: TruthEvent, event: Event, tolerance_s: float) -> bool:
     if truth.team != "unknown" and event.team != truth.team:
         return False
     both_have_points = truth.points is not None and event.evidence.points is not None
-    return not (both_have_points and truth.points != event.evidence.points)
+    if both_have_points and truth.points != event.evidence.points:
+        return False
+    both_have_zone = truth.zone is not None and event.zone is not None
+    return not (both_have_zone and truth.zone != event.zone)
+
+
+def camera_state_accuracy(
+    log: list[tuple[float, str]], segments: list[CameraSegment]
+) -> float | None:
+    """Fraction of logged (t_pts, state) entries inside a segment that match its state;
+    ``None`` when no entry falls inside any segment."""
+    hits = total = 0
+    for t, state in log:
+        seg = next((s for s in segments if s.start <= t < s.end), None)
+        if seg is None:
+            continue
+        total += 1
+        hits += state == seg.state
+    return hits / total if total else None
 
 
 def _confirmed(events: Iterable[Event]) -> list[Event]:

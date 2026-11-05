@@ -15,6 +15,22 @@ class TruthEvent(BaseModel):
     team: str
     player: str | None = None
     points: int | None = None
+    zone: str | None = None
+
+
+class CameraSegment(BaseModel):
+    """A stretch of a clip in one camera state: ``[start, end)`` seconds of pts."""
+
+    model_config = ConfigDict(frozen=True)
+
+    start: float
+    end: float
+    state: str
+
+
+def load_camera_truth(path: str | Path) -> list[CameraSegment]:
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    return [CameraSegment.model_validate_json(line) for line in lines if line.strip()]
 
 
 def load_truth(path: str | Path) -> list[TruthEvent]:

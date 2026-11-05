@@ -75,3 +75,22 @@ def test_firsts_accuracy_compares_dotted_paths():
     truth_firsts = {"first_score.team": "home", "first_score.kind": "three", "first_three.team": "away"}
     r = score([], [], firsts=firsts, truth_firsts=truth_firsts)
     assert r.firsts_accuracy == pytest.approx(2 / 3) and r.per_type == {}
+
+
+def test_zone_mismatch_does_not_match():
+    from sports_watcher.events.model import EventStatus
+
+    e = make_event(type="shot_attempt", status=EventStatus.confirmed, t_pts=10.0, zone="two")
+    truth_three = TruthEvent(t_pts=10.2, type="shot_attempt", team="home", zone="three")
+    assert match_events([e], [truth_three])[0][1] is None
+    assert match_events([e], [TruthEvent(t_pts=10.2, type="shot_attempt", team="home")])[0][1] is e
+
+
+def test_camera_state_accuracy():
+    from sports_watcher.eval.score import camera_state_accuracy
+    from sports_watcher.replay.truth import CameraSegment
+
+    segs = [CameraSegment(start=0.0, end=2.0, state="main"), CameraSegment(start=2.0, end=4.0, state="closeup")]
+    log = [(0.5, "main"), (1.5, "main"), (2.5, "main"), (3.5, "closeup"), (9.0, "graphics")]
+    assert camera_state_accuracy(log, segs) == 0.75
+    assert camera_state_accuracy([(9.0, "main")], segs) is None

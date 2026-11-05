@@ -17,6 +17,9 @@ from sports_watcher.config import LeagueConfig
 from sports_watcher.events.model import Event, EventStatus, PlayerRef
 
 RACE_THRESHOLDS = (10, 20)
+TIP_OFF_WINDOW_S = 5.0
+SCORING_TYPES = ("shot_made", "free_throw_made")
+MISS_TYPES = ("shot_missed", "free_throw_missed")
 ScoreKind = Literal["ft", "two", "three", "unknown"]
 
 
@@ -102,4 +105,46 @@ def fold_firsts(events: Iterable[Event], league: LeagueConfig) -> Firsts:
                 reached[threshold] = "away"
 
     firsts.race_to = race
+    _fold_vision(firsts, events)
     return firsts
+
+
+def _fold_vision(firsts: Firsts, events: Iterable[Event]) -> None:
+    """Possession, tip-off and first-attempt folds over confirmed events in pts order."""
+    by_time = sorted((e for e in events if e.status == EventStatus.confirmed), key=lambda e: (e.t_pts, e.seq))
+    starts = [e for e in by_time if e.type == "possession_start" and e.team in ("home", "away")]
+    if starts:
+        firsts.first_possession = starts[0].team
+    tip = next((e for e in by_time if e.type == "tip_off"), None)
+    if tip is not None:
+        winner = next((e for e in starts if tip.t_pts <= e.t_pts <= tip.t_pts + TIP_OFF_WINDOW_S), None)
+        firsts.tip_off_winner = winner.team if winner is not None else None
+    attempt = next((e for e in by_time if e.type == "shot_attempt"), None)
+    if attempt is not None:
+        firsts.first_shot_attempt = FirstRef(
+            team=attempt.team, player=attempt.player, t_pts=attempt.t_pts, seq=attempt.seq
+        )
+    possessions: list[PossessionResult] = []
+    start_seqs = {e.seq for e in starts}
+    for i, start in enumerate(starts):
+        # A turnover is stamped at the instant the next possession begins, so the window
+        # closes inclusively; the possession_start events themselves never count.
+        end = starts[i + 1].t_pts if i + 1 < len(starts) else float("inf")
+        window = [e for e in by_time if start.t_pts <= e.t_pts <= end and e.seq not in start_seqs]
+        result = _possession_result(start.team, window)
+        if result is None:
+            continue  # still open: no later possession and nothing decided it
+        possessions.append(PossessionResult(period=start.period, team=start.team, result=result, t_pts=start.t_pts))
+    firsts.possessions = possessions
+
+
+def _possession_result(team: str, window: list[Event]) -> str | None:
+    if any(e.type in SCORING_TYPES and e.team == team for e in window):
+        return "score"
+    if any(e.type == "turnover" and e.team == team for e in window):
+        return "turnover"
+    if any(e.type in MISS_TYPES and e.team == team for e in window):
+        return "miss"
+    if any(e.type == "period_end" for e in window):
+        return "end_period"
+    return None

@@ -24,3 +24,15 @@ def test_truth_roundtrip(tmp_path):
     path = tmp_path / "truth.jsonl"
     save_truth(path, events)
     assert load_truth(path) == events and len(path.read_text().splitlines()) == 3
+
+
+def test_truth_zone_and_camera_segments(tmp_path):
+    from sports_watcher.replay.truth import load_camera_truth
+
+    assert TruthEvent(t_pts=1.0, type="shot_attempt", team="home", zone="three").zone == "three"
+    p = tmp_path / "c.camera.jsonl"
+    p.write_text(
+        '{"start": 0.0, "end": 3.0, "state": "main"}\n{"start": 3.0, "end": 5.0, "state": "closeup"}\n'
+    )
+    segs = load_camera_truth(p)
+    assert [s.state for s in segs] == ["main", "closeup"] and segs[1].end == 5.0

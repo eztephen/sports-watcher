@@ -89,3 +89,32 @@ def test_race_to_resets_per_period_and_kind_from_points():
     assert f.race_to[1][10] == "home" and f.race_to[1][20] is None
     assert f.race_to[2] == {10: None, 20: None}
     assert f.first_score.kind == "two" and f.first_three.team == "away" and f.first_three.t_pts == 102
+
+
+def _c(seq, type, team, t, **kw):
+    from sports_watcher.events.model import EventStatus
+
+    return make_event(seq=seq, type=type, team=team, t_pts=t, status=EventStatus.confirmed, **kw)
+
+
+def test_vision_firsts_and_possessions():
+    ev = [
+        _c(1, "tip_off", "unknown", 1.0), _c(2, "possession_start", "away", 2.0),
+        _c(3, "shot_attempt", "away", 8.0), _c(4, "shot_missed", "away", 9.0),
+        _c(5, "possession_start", "home", 10.0), _c(6, "turnover", "home", 15.0),
+        _c(7, "possession_start", "away", 15.0), _c(8, "shot_made", "away", 20.0),
+        _c(9, "possession_start", "home", 21.0), _c(10, "period_end", "unknown", 30.0),
+        _c(11, "possession_start", "away", 40.0, period=2),
+    ]
+    f = fold_firsts(ev, PBA)
+    assert f.first_possession == "away" and f.tip_off_winner == "away"
+    assert f.first_shot_attempt.team == "away" and f.first_shot_attempt.t_pts == 8.0
+    assert [(p.team, p.result) for p in f.possessions] == [
+        ("away", "miss"), ("home", "turnover"), ("away", "score"), ("home", "end_period"),
+    ]
+
+
+def test_tip_off_winner_needs_possession_within_five_seconds():
+    ev = [_c(1, "tip_off", "unknown", 1.0), _c(2, "possession_start", "home", 7.0)]
+    f = fold_firsts(ev, PBA)
+    assert f.tip_off_winner is None and f.first_possession == "home"
