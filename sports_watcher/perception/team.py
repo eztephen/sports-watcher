@@ -56,6 +56,13 @@ def crop_color_lab(crop_bgr: np.ndarray) -> np.ndarray:
     return np.median(lab, axis=0).astype(float)
 
 
+def align_labels(prev_centroids: np.ndarray, new_centroids: np.ndarray) -> dict[int, int]:
+    """New cluster label to previous label, by the closer total centroid distance."""
+    straight = np.linalg.norm(new_centroids[0] - prev_centroids[0]) + np.linalg.norm(new_centroids[1] - prev_centroids[1])
+    swapped = np.linalg.norm(new_centroids[0] - prev_centroids[1]) + np.linalg.norm(new_centroids[1] - prev_centroids[0])
+    return {0: 0, 1: 1} if straight <= swapped else {0: 1, 1: 0}
+
+
 def map_clusters(cluster_lab: np.ndarray, home_lab: np.ndarray, away_lab: np.ndarray) -> dict[int, Team]:
     """Assign the two clusters to home and away with the smaller total Lab distance."""
     straight = np.linalg.norm(cluster_lab[0] - home_lab) + np.linalg.norm(cluster_lab[1] - away_lab)
@@ -88,6 +95,7 @@ class TeamAssigner:
         self._last_sample: dict[int, float] = {}
         self._model: KMeans | None = None
         self._mapping: dict[int, Team] = {}
+        self._centroids: np.ndarray | None = None
         self._last_fit_pts: float | None = None
         self._fit_size = 0
 
@@ -132,9 +140,14 @@ class TeamAssigner:
         cluster_lab = np.stack([colors[labels == k].mean(axis=0) if (labels == k).any() else colors.mean(axis=0) for k in (0, 1)])
         if self._home is not None and self._away is not None:
             mapping = map_clusters(cluster_lab, self._home, self._away)
+        elif self._centroids is not None:
+            # No operator colours: keep the labels of the previous fit by centroid proximity.
+            aligned = align_labels(self._centroids, model.cluster_centers_)
+            mapping = {new: self._mapping[old] for new, old in aligned.items()}
         else:
             mapping = {0: "home", 1: "away"}
         self._model, self._mapping = model, mapping
+        self._centroids = model.cluster_centers_.copy()
         self._labels = [int(v) for v in labels]
         self._last_fit_pts = t_pts
         self._fit_size = len(self._embeddings)

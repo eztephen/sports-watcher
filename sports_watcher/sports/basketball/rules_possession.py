@@ -22,6 +22,8 @@ TURNOVER_CONFIDENCE = 0.6
 SHOT_CLOCK_TURNOVER_CONFIDENCE = 0.5
 SHOT_CLOCK_TURNOVER_TTL_S = 5.0
 NO_RIM_MISS_S = 1.5
+RESTART_GRACE_S = 2.0  # a hold that began this long before the clock restarted still counts
+DELTA_WINDOW_S = 3.0  # the scoreboard may lag a basket by this much
 
 
 def _track(tracks: list[Track], track_id: int) -> Track | None:
@@ -54,6 +56,9 @@ class PossessionStartRule:
         if since is None or since == self._drafted_since:
             return []
         self._drafted_since = since
+        opened = new.clock_running_since_pts
+        if opened is not None and since < opened - RESTART_GRACE_S:
+            return []  # held through a dead ball or a replay: not a live possession start
         player, court_xy, det = _player(new.tracks, new.holder.track_id)
         return [
             EventDraft(
@@ -88,6 +93,9 @@ class ReboundRule:
         if self._fired == shot.t_pts or new.score() != self._score_at or not new.clock_running:
             return []
         ri = new.rim_interaction
+        if ri is not None and ri.crossed_pts is not None and ri.crossed_pts > shot.t_pts:
+            self._fired = shot.t_pts  # the ball went through: nothing to rebound
+            return []
         left_rim = ri is not None and ri.left_pts is not None and ri.left_pts > shot.t_pts
         never_entered = (ri is None or ri.entered_pts is None) and obs.t_pts - shot.t_pts >= NO_RIM_MISS_S
         if not (left_rim or never_entered):
@@ -105,7 +113,7 @@ class ReboundRule:
                 t_pts=h.since_pts,
                 evidence=vision_evidence(new, obs, track_id=h.track_id, detector_confidence=det, note=note),
                 confidence=base_confidence(REBOUND_CONFIDENCE, new),
-                confirmer=rebound_holds(h.team, shot.team, self._score_at),
+                confirmer=rebound_holds(h.team, shot.team, self._score_at, not_before_pts=shot.t_pts + DELTA_WINDOW_S),
                 player=player,
                 court_xy=court_xy,
             )
@@ -139,7 +147,9 @@ class TurnoverRule:
                     t_pts=since,
                     evidence=vision_evidence(new, obs, note="possession_change"),
                     confidence=base_confidence(TURNOVER_CONFIDENCE, new),
-                    confirmer=team_holds_unless_attempt(new.possession, prev.possession, window),
+                    confirmer=team_holds_unless_attempt(
+                        new.possession, prev.possession, window, new.score(), not_before_pts=since + DELTA_WINDOW_S
+                    ),
                 )
             ]
         if (

@@ -50,9 +50,9 @@ class ShotAttemptRule:
         shot = new.last_shot
         if shot is None or shot.t_pts in self._drafted:
             return []
-        if not new.clock_running or new.lane_formation is not None:
+        self._drafted.add(shot.t_pts)  # decided once, at record time: never deferred
+        if not shot.clock_running or shot.free_throw:
             return []
-        self._drafted.add(shot.t_pts)
         tr = next((t for t in new.tracks if t.track_id == shot.track_id), None)
         conf = tr.confidence if tr is not None else 0.0
         return [
@@ -111,9 +111,9 @@ class ShotOutcomeRule:
         shot = new.last_shot
         if shot is None or shot.t_pts in self._seen:
             return
-        if not new.clock_running or new.lane_formation is not None:
-            return
         self._seen.add(shot.t_pts)
+        if not shot.clock_running or shot.free_throw:
+            return
         self._open.append(
             _OpenAttempt(shot.t_pts, shot.team, shot.track_id, shot.zone, shot.court_xy, new.score())
         )
@@ -122,7 +122,8 @@ class ShotOutcomeRule:
         if not new.has_vision:
             return []  # scoreboard-only mode behaves exactly as M0
         if points == 1:
-            if new.free_throws_pending:
+            recent_ft = new.last_free_throw_pts is not None and obs.t_pts - new.last_free_throw_pts <= FT_RESOLVE_S
+            if new.free_throws_pending or recent_ft:
                 return []  # FreeThrowRule owns it
             return [self._retroactive_attempt(team, points, new, obs)]
         att = next(

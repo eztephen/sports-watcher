@@ -66,3 +66,17 @@ def test_ball_filter_rejects_far_detection():
         bf.update((10.0 * i, 100.0), 6.0, 0.8, i / 30)
     assert bf.update((500.0, 500.0), 6.0, 0.9, 5 / 30) is False
     assert bf.update((50.0, 100.0), 6.0, 0.9, 5 / 30) is True
+
+
+def test_ball_filter_reacquires_after_a_jump():
+    bf = BallFilter()
+    t = 0.0
+    for i in range(10):
+        bf.update((100.0 + 10 * i, 500.0), 8.0, 0.9, t)
+        t += 1 / 30
+    accepted = 0
+    for _ in range(90):  # a camera cut: the ball sits at a new spot for 3 s
+        accepted += bf.update((1200.0, 300.0), 8.0, 0.9, t)
+        t += 1 / 30
+    assert accepted >= 80
+    assert bf.current(t - 1 / 30).source == "detected"

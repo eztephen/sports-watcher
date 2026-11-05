@@ -107,3 +107,14 @@ def test_lane_formation_detected_when_clock_stopped():
     states = _states(observations(b.frames, running=False))
     lf = states[-1].lane_formation
     assert lf is not None and lf.shooter_track_id == 1 and lf.side == "left" and lf.team == "home"
+
+
+def test_holder_stays_while_the_ball_is_inside_their_box():
+    S = {1: ("home", (22.0, 7.5)), 2: ("away", (22.5, 7.5))}
+    b = PlayBuilder(Scene(L))
+    b.hold(1.0, S, holder_id=1)
+    for _ in range(30):
+        b.frame(S, ((22.3, 7.5), 1.0))  # dribbled on the defender's side for 1 s
+    b.hold(1.0, S, holder_id=1)
+    states = _states(observations(b.frames))
+    assert all(s.holder is None or s.holder.track_id == 1 for s in states[10:])

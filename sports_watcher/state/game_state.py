@@ -43,6 +43,8 @@ class ShotRecord:
     team: Team
     zone: str
     court_xy: tuple[float, float] | None
+    clock_running: bool = True  # the clock gate when the shot was recorded
+    free_throw: bool = False  # released from a lane formation
 
 
 @dataclass
@@ -83,8 +85,10 @@ class GameState:
     possession_since_pts: float | None = None
     clock_running: bool = False
     clock_state: ClockState = "unknown"
+    clock_running_since_pts: float | None = None  # when the gate last opened
     last_clock_change_pts: float | None = None
     last_scoreboard_pts: float | None = None
+    last_free_throw_pts: float | None = None  # release by the lane formation's shooter
     camera_left_main_pts: float | None = None
 
     def score(self) -> tuple[int, int]:

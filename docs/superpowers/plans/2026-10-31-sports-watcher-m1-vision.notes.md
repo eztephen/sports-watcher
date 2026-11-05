@@ -39,3 +39,34 @@ Copied from the execution ledger of `docs/superpowers/plans/2026-10-31-sports-wa
 - Scoreboard-only run of `data/golden/pba_ros_cvg_vision.mp4` (180 s, 1080p60, OCR every 15 frames): 1 min 37 s wall on the M1 Pro; the seven score changes it confirmed match the hand-read bug crops within 0.7 s.
 - Detector size, per-stage milliseconds and ball recall: not measured yet (needs the Colab weights; `scripts/bench_perceiver.py`).
 - Golden scores for `possession_start` and `shot_attempt`: not run yet (needs weights or a perception cache).
+
+## Final review (fresh reviewer, 09c5c68..834fc37) and fix pass
+
+Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all verified with probe scripts. All nine were fixed test-first in one pass; the suite went from 204 to 220 tests.
+
+- Final: fixed ball filter never re-acquires after a jump or drop — test_ball_filter_reacquires_after_a_jump RED→GREEN
+- Final: fixed shots and possessions deferred past the clock gate (phantom field-goal attempts after free throws, replay shots drafted at the restart) — test_shot_during_frozen_clock_is_not_deferred_to_the_restart, test_made_free_throw_is_neither_a_field_goal_nor_double_counted, test_possession_held_through_a_dead_ball_is_not_drafted_at_the_restart, test_possession_taken_just_before_the_restart_is_drafted RED→GREEN (ShotRecord carries clock_running and free_throw at record time; PossessionStartRule drafts only possessions that began within 2 s of the clock restarting)
+- Final: fixed phantom defensive rebound after a made basket with a slow delta — test_made_basket_with_a_slow_delta_has_no_confirmed_rebound RED→GREEN (skip when the ball crossed the rim; confirm no earlier than 3 s after the shot)
+- Final: fixed turnover confirmed against a team that scored unseen — test_turnover_is_retracted_when_the_losing_team_scores RED→GREEN (retract on a delta for the losing team; confirm no earlier than 3 s after the change)
+- Final: fixed made free throw double counted when the inbounder picks the ball up before the delta — covered by test_made_free_throw_is_neither_a_field_goal_nor_double_counted (GameState.last_free_throw_pts; +1 deltas within 3 s of a lane-formation release belong to FreeThrowRule)
+- Final: fixed holder flipping to an adjacent defender — test_holder_stays_while_the_ball_is_inside_their_box, test_adjacent_defender_does_not_take_possession RED→GREEN (the holder keeps the ball while it is inside their reach box)
+- Final: fixed perception cache key and lookup — test_find_cache_matches_the_stem_and_header_exactly, test_partial_cache_with_an_inner_perceiver_is_rebuilt, test_complete_cache_is_reused_by_an_inner_perceiver, test_cache_only_miss_degrades_to_empty_vision, test_settings_version_changes_with_colours, test_model_set_rejects_a_manifest_whose_sha_does_not_match RED→GREEN (version covers colours, league, template and cadences; exact stem plus header check; completion marker; partial caches rebuilt; cache-only misses give empty vision; manifests verified by sha256 in build_perceiver)
+- Final: fixed home/away swapping at a refit without operator colours — test_align_labels_to_previous_centroids RED→GREEN, test_refit_without_colours_keeps_the_mapping as regression
+- Final: fixed API jobs never running vision — test_create_builds_a_perceiver_from_the_request_colours RED→GREEN
+- Final: Ruling: turnover and rebound confirmations wait out the 3 s scoreboard delta window instead of the spec's 0.5 s hold (the spec's own latency allowance races its own hold; the reviewer verified both phantom confirmations) — cost if wrong: confirmed turnovers and rebounds arrive about 2.5 s later than the spec says.
+- Final: Ruling: the synthetic miss goes long off the back of the rim (an image-x offset) instead of beside it in court depth, which the side camera rendered as a rim crossing — cost if wrong: none, test fixture only.
+- Final: Ruling: declined-to-judge live-source throughput — M1 targets the offline cache loop; a live budget is M3 (replay rig) — cost if wrong: a slow live run, never a wrong event.
+- Final: Ruling: declined-to-judge BallObs.floor_xy for an airborne ball — defined that way by the addendum and read by no rule — cost if wrong: none today.
+- Final: Ruling: declined-to-judge the golden truth contents — drafted, with its uncertainties in the meta, for Stephen's pass — cost if wrong: truth lines move.
+- Final: Ruling: declined-to-judge tracker IoU gating under fast pans — OC-SORT defaults until real footage says otherwise — cost if wrong: id switches on pans, visible once weights run.
+- Final: Ruling: declined-to-judge the shot-clock-reset turnover against this feed's 24 s offensive-rebound reset — the rule needs the holder unknown and possession unchanged, so an offensive rebound with a visible holder does not fire it; revisit on the golden clip — cost if wrong: a false turnover on an unseen offensive rebound.
+- Final: Ruling: declined-to-judge shot_missed firing for an air ball — a shot that never reaches the rim is a miss — cost if wrong: none.
+- Final: Ruling: declined-to-judge weights, court template and training script correctness — cannot run without the Roboflow data; marked skipped — cost if wrong: found at the first Colab run.
+- Final: minor (deferred): possession and shot state never reset at a period start (an overtime tip won by the team with the last regulation possession yields no tip_off_winner)
+- Final: minor (deferred): Verdict = str loses type checking; small constructors would keep call sites honest
+- Final: minor (deferred): the homography averages over 1 s and lags feet positions during pans (spec wording; revisit with footage)
+- Final: minor (deferred): the lob test accepts a ttl retraction as well as same_team_holds
+- Final: minor (deferred): chest-pass false positives are only tested on noise-free arcs; add a noisy-pass test
+- Final: minor (deferred): download_models.py filters ".." but not absolute zip member names
+- Final: minor (deferred): the perception cadence logic is duplicated in watcher._perception_cadence and offline.build_cache
+- Final: minor (deferred): court template fractions of length and width do not transfer key or arc geometry between FIBA and NBA courts

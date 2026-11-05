@@ -60,7 +60,7 @@ def build_perceiver(
     from sports_watcher.perception.cache import CachedPerceiver, cache_path, find_cache
     from sports_watcher.perception.models import ModelSet
 
-    models = ModelSet.load(Path(settings.models_dir))
+    models = ModelSet.load(Path(settings.models_dir), verify=True)
     if models is not None:
         from sports_watcher.perception.onnx_perceiver import OnnxPerceiver
 

@@ -75,6 +75,8 @@ def update_clock_gate(prev: GameState, new: GameState, obs: Observation) -> None
     else:
         new.clock_state = "unknown"
         new.clock_running = False
+    if new.clock_running and not prev.clock_running:
+        new.clock_running_since_pts = t
 
 
 # -- pure geometry helpers --------------------------------------------------------------
@@ -207,6 +209,11 @@ def _track(tracks: list[Track], track_id: int) -> Track | None:
 def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
     if vf.ball is None:
         return  # ball unseen: holder and candidate carry over
+    if new.holder is not None:
+        held = _track(vf.tracks, new.holder.track_id)
+        if held is not None and _inside(vf.ball.xy, grown(held.box, BOX_GROW)):
+            new.holder_candidate = None
+            return  # still in the holder's reach: a nearer defender does not take it
     cand = holder_candidate(vf.tracks, vf.ball)
     if cand is None:
         new.holder, new.holder_candidate = None, None
@@ -255,6 +262,9 @@ def _apply_release(prev: GameState, new: GameState, vf, t: float, league: League
         feet_xy=feet,
         zone=zone_of_feet(feet, league, prev.homography_confidence),
     )
+    lane = prev.lane_formation
+    if lane is not None and lane.shooter_track_id == prev.holder.track_id and not new.clock_running:
+        new.last_free_throw_pts = prev.t_pts
     new.ball_path = [(t, vf.ball.xy[0], vf.ball.xy[1])]
     new.rim_interaction = RimInteraction()
 
@@ -271,7 +281,11 @@ def _apply_ball_path(new: GameState, vf, t: float) -> None:
     if already or vf.rim is None or len(new.ball_path) < SHOT_FIT_OBS:
         return
     if shot_path_passes_rim(new.ball_path, vf.rim):
-        new.last_shot = ShotRecord(rel.t_pts, rel.track_id, rel.team, rel.zone, rel.feet_xy)
+        free_throw = new.last_free_throw_pts == rel.t_pts
+        new.last_shot = ShotRecord(
+            rel.t_pts, rel.track_id, rel.team, rel.zone, rel.feet_xy,
+            clock_running=new.clock_running, free_throw=free_throw,
+        )
 
 
 def _apply_rim_interaction(prev: GameState, new: GameState, vf, t: float) -> None:

@@ -50,7 +50,9 @@ class ModelSet:
     camera_probe: Path | None = None
 
     @classmethod
-    def load(cls, models_dir: Path) -> ModelSet | None:
+    def load(cls, models_dir: Path, verify: bool = False) -> ModelSet | None:
+        """The weights under ``models_dir``, or ``None`` without a detector. With
+        ``verify`` each manifest's sha256 is checked against its weight file."""
         root = Path(models_dir)
         detector = root / "detector" / "model.onnx"
         detector_manifest = root / "detector" / "manifest.json"
@@ -61,7 +63,7 @@ class ModelSet:
         has_court = court.is_file() and court_manifest.is_file()
         siglip = root / "siglip" / "vision.onnx"
         probe = root / "camera" / "probe.json"
-        return cls(
+        ms = cls(
             detector=detector,
             detector_manifest=load_manifest(detector_manifest),
             court=court if has_court else None,
@@ -69,6 +71,11 @@ class ModelSet:
             siglip=siglip if siglip.is_file() else None,
             camera_probe=probe if probe.is_file() else None,
         )
+        if verify:
+            for path, manifest in ((ms.detector, ms.detector_manifest), (ms.court, ms.court_manifest)):
+                if path is not None and manifest is not None and _sha256(path) != manifest.sha256:
+                    raise ValueError(f"{path}: sha256 does not match its manifest")
+        return ms
 
     @property
     def version(self) -> str:
@@ -81,6 +88,12 @@ class ModelSet:
         if self.camera_probe is not None:
             parts.append(f"camera:{_sha256(self.camera_probe)}")
         return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
+
+
+def settings_version(base: str, **settings: object) -> str:
+    """Twelve hex digits over a weights version and the settings that shape a cache."""
+    parts = [base] + [f"{k}={settings[k]!r}" for k in sorted(settings)]
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
 def _sha256(path: Path) -> str:

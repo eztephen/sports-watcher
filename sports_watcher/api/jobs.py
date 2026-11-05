@@ -5,10 +5,12 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from uuid import uuid4
 
 from sports_watcher.api.schemas import CreateGameRequest
 from sports_watcher.config import Settings, load_league
+from sports_watcher.perception.perceiver import build_perceiver
 from sports_watcher.perception.scoreboard import RapidOcrTextReader, TextReader
 from sports_watcher.watcher import GameWatcher
 
@@ -42,6 +44,8 @@ class JobManager:
         if req.broadcaster not in league.broadcasters:
             raise ValueError(f"unknown broadcaster: {req.broadcaster}")
         game_id = uuid4().hex[:12]
+        clip = Path(req.source.path) if req.source.kind == "file" and req.source.path else None
+        perceiver = build_perceiver(self._settings, league, clip, req.home_color, req.away_color)
         watcher = GameWatcher(
             req.source,
             league,
@@ -51,6 +55,7 @@ class JobManager:
             away=req.away,
             text_reader=self._text_reader_factory(),
             ocr_every_n_frames=self._ocr_every_n_frames,
+            perceiver=perceiver,
         )
         thread = watcher.start_in_thread()
         with self._lock:

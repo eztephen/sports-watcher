@@ -53,6 +53,7 @@ def build_cache(
                 perceived += 1
                 if progress is not None:
                     progress(perceived)
+        cached.mark_complete()
     finally:
         source.close()
     return CacheStats(read, perceived, time.perf_counter() - t0)

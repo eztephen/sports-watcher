@@ -133,3 +133,27 @@ def test_delta_without_attempt_emits_retroactive_attempt():
     assert att[0].team == "away"
     assert att[0].court_xy is None and att[0].evidence.note == "retroactive"
     assert confirmed(ev, "shot_made")[0].confidence == 0.4
+
+
+def test_shot_during_frozen_clock_is_not_deferred_to_the_restart():
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="make")
+    b.hold(8.0, S, holder_id=2)
+    ev = drive(observations(b.frames, running=False, resume_at=4.0))
+    assert provisional(ev, "shot_attempt") == [] and provisional(ev, "shot_missed") == []
+    assert provisional(ev, "rebound") == []
+
+
+def test_made_free_throw_is_neither_a_field_goal_nor_double_counted():
+    LANE = {
+        1: ("home", (5.8, 7.5)), 2: ("away", (3.0, 9.95)), 3: ("home", (3.0, 5.05)),
+        4: ("away", (4.5, 10.1)), 5: ("home", (4.5, 4.9)), 6: ("away", (10.0, 7.5)),
+    }
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, LANE, holder_id=1)
+    b.shot(1, LANE, "left", outcome="make")
+    b.hold(6.0, LANE, holder_id=6)  # the inbounder picks the ball up before the bug updates
+    ev = drive(observations(b.frames, running=False, resume_at=5.0, deltas={2.6: (1, 0)}))
+    assert len(confirmed(ev, "free_throw_made")) == 1
+    assert provisional(ev, "shot_attempt") == [] and provisional(ev, "shot_missed") == []

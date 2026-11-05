@@ -195,8 +195,16 @@ class Tracker:
 # -- ball -------------------------------------------------------------------------------
 
 
+REACQUIRE_AFTER_REJECTS = 3
+REACQUIRE_MIN_CONFIDENCE = 0.5
+
+
 class BallFilter:
-    """Constant-velocity Kalman filter on the ball centre, variable time step."""
+    """Constant-velocity Kalman filter on the ball centre, variable time step.
+
+    The filter re-initialises on the next detection once the ball has been dropped
+    (``drop_after_s`` without an accepted detection) or after a few consecutive
+    confident detections outside the gate (a camera cut or a long pass)."""
 
     def __init__(self, drop_after_s: float = 0.5, gate_px: float = 60.0) -> None:
         self.drop_after_s = drop_after_s
@@ -205,9 +213,10 @@ class BallFilter:
         self._last_t: float | None = None
         self._radius = 0.0
         self._confidence = 0.0
+        self._rejects = 0
 
     def reset(self) -> None:
-        self._kf, self._last_t = None, None
+        self._kf, self._last_t, self._rejects = None, None, 0
 
     @staticmethod
     def _f(dt: float) -> np.ndarray:
@@ -223,6 +232,8 @@ class BallFilter:
         return (float(x[0, 0]), float(x[1, 0]))
 
     def update(self, xy: tuple[float, float], radius_px: float, confidence: float, t_pts: float) -> bool:
+        if self._kf is not None and self._last_t is not None and t_pts - self._last_t > self.drop_after_s:
+            self.reset()  # dropped: take the next detection as a fresh start
         if self._kf is None or self._last_t is None:
             kf = KalmanFilter(dim_x=4, dim_z=2)
             kf.H = np.eye(2, 4)
@@ -235,7 +246,13 @@ class BallFilter:
             pred = self.predict(t_pts)
             assert pred is not None
             if math.dist(pred, xy) > max(self.gate_px, 3.0 * radius_px):
-                return False
+                if confidence >= REACQUIRE_MIN_CONFIDENCE:
+                    self._rejects += 1
+                if self._rejects < REACQUIRE_AFTER_REJECTS:
+                    return False
+                self.reset()  # the ball is somewhere else: re-acquire it here
+                return self.update(xy, radius_px, confidence, t_pts)
+            self._rejects = 0
             dt = t_pts - self._last_t
             self._kf.F = self._f(dt)
             self._kf.predict()

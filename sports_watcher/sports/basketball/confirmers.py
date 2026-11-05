@@ -88,27 +88,46 @@ def team_holds(team: Team, hold_s: float = HOLD_CONFIRM_S) -> Confirmer:
     return confirm
 
 
-def team_holds_unless_attempt(team: Team, lost_team: Team, window: tuple[float, float]) -> Confirmer:
-    """``team_holds`` that retracts when an attempt by ``lost_team`` shows up inside ``window``."""
+def team_holds_unless_attempt(
+    team: Team,
+    lost_team: Team,
+    window: tuple[float, float],
+    score_at: Score | None = None,
+    not_before_pts: float | None = None,
+) -> Confirmer:
+    """``team_holds`` for a turnover: retracted when an attempt by ``lost_team`` shows up
+    inside ``window`` or ``lost_team`` scores (vision missed the shot); not confirmed
+    before ``not_before_pts`` so a lagging scoreboard can still retract it."""
     inner = team_holds(team)
 
     def confirm(draft: EventDraft, state: GameState, obs: Observation) -> Verdict:
         shot = state.last_shot
         if shot is not None and shot.team == lost_team and window[0] <= shot.t_pts <= window[1]:
             return "retracted:attempt_found"
-        return inner(draft, state, obs)
+        if score_at is not None and team_delta(lost_team, score_at, state.score()) > 0:
+            return "retracted:late_delta"
+        verdict = inner(draft, state, obs)
+        if verdict == "confirmed" and not_before_pts is not None and obs.t_pts < not_before_pts:
+            return "pending"
+        return verdict
 
     return confirm
 
 
-def rebound_holds(team: Team, shot_team: Team, score_at_shot: Score) -> Confirmer:
-    """``team_holds`` that retracts when the shot turns out to have been made."""
+def rebound_holds(
+    team: Team, shot_team: Team, score_at_shot: Score, not_before_pts: float | None = None
+) -> Confirmer:
+    """``team_holds`` that retracts when the shot turns out to have been made, and does
+    not confirm before ``not_before_pts`` (the scoreboard's delta window)."""
     inner = team_holds(team)
 
     def confirm(draft: EventDraft, state: GameState, obs: Observation) -> Verdict:
         if team_delta(shot_team, score_at_shot, state.score()) > 0:
             return "retracted:late_delta"
-        return inner(draft, state, obs)
+        verdict = inner(draft, state, obs)
+        if verdict == "confirmed" and not_before_pts is not None and obs.t_pts < not_before_pts:
+            return "pending"
+        return verdict
 
     return confirm
 

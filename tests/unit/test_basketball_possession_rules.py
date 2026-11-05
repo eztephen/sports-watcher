@@ -85,7 +85,7 @@ def test_rebound_after_miss_is_defensive_for_the_other_team():
     b = PlayBuilder(Scene(L))
     b.hold(0.6, S, holder_id=1)
     b.shot(1, S, "right", outcome="miss")
-    b.hold(1.0, S, holder_id=2)
+    b.hold(4.0, S, holder_id=2)  # confirmation waits out the 3 s scoreboard window
     ev = drive(observations(b.frames))
     reb = confirmed(ev, "rebound")
     assert len(reb) == 1 and reb[0].team == "away" and reb[0].evidence.note == "defensive"
@@ -94,7 +94,7 @@ def test_rebound_after_miss_is_defensive_for_the_other_team():
 def test_turnover_when_possession_changes_without_an_attempt():
     b = PlayBuilder(Scene(L))
     b.hold(0.6, P, holder_id=1)
-    b.hold(1.0, P, holder_id=2)
+    b.hold(4.0, P, holder_id=2)  # confirmation waits out the 3 s scoreboard window
     ev = drive(observations(b.frames))
     to = confirmed(ev, "turnover")
     assert len(to) == 1 and to[0].team == "home"
@@ -107,3 +107,45 @@ def test_no_turnover_when_the_change_follows_a_shot():
     b.shot(1, S, "right", outcome="miss")
     b.hold(1.0, S, holder_id=2)
     assert provisional(drive(observations(b.frames)), "turnover") == []
+
+
+def test_possession_held_through_a_dead_ball_is_not_drafted_at_the_restart():
+    b = PlayBuilder(Scene(L))
+    b.hold(6.0, P, holder_id=1)
+    assert provisional(drive(observations(b.frames, running=False, resume_at=5.0)), "possession_start") == []
+
+
+def test_possession_taken_just_before_the_restart_is_drafted():
+    b = PlayBuilder(Scene(L))
+    b.hold(2.0, P, holder_id=1)
+    ev = drive(observations(b.frames, running=False, resume_at=0.5))
+    prov = provisional(ev, "possession_start")
+    assert len(prov) == 1 and prov[0].t_pts == 0.0
+
+
+def test_made_basket_with_a_slow_delta_has_no_confirmed_rebound():
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="make")
+    b.hold(3.0, S, holder_id=2)
+    ev = drive(observations(b.frames, deltas={3.0: (2, 0)}))
+    assert confirmed(ev, "rebound") == [] and len(confirmed(ev, "shot_made")) == 1
+
+
+def test_turnover_is_retracted_when_the_losing_team_scores():
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.hold(3.5, S, holder_id=2)
+    ev = drive(observations(b.frames, deltas={2.5: (2, 0)}))
+    assert confirmed(ev, "turnover") == [] and len(retracted(ev, "turnover")) == 1
+
+
+def test_adjacent_defender_does_not_take_possession():
+    D = {1: ("home", (22.0, 7.5)), 2: ("away", (22.5, 7.5))}
+    b = PlayBuilder(Scene(L))
+    b.hold(1.0, D, holder_id=1)
+    for _ in range(30):
+        b.frame(D, ((22.3, 7.5), 1.0))
+    b.hold(1.0, D, holder_id=1)
+    ev = drive(observations(b.frames))
+    assert provisional(ev, "turnover") == [] and len(provisional(ev, "possession_start")) == 1

@@ -34,3 +34,25 @@ def test_load_manifest_validates(tmp_path):
     p = tmp_path / "manifest.json"
     p.write_text(json.dumps({"name": "x", "family": "siglip", "licence": "Apache-2.0", "sha256": "c" * 64}))
     assert load_manifest(p).family == "siglip"
+
+
+def test_model_set_rejects_a_manifest_whose_sha_does_not_match(tmp_path):
+    import hashlib
+
+    import pytest
+
+    _write(tmp_path, "detector", "a" * 64, resolution=512)
+    with pytest.raises(ValueError, match="sha256"):
+        ModelSet.load(tmp_path, verify=True)
+    (tmp_path / "detector" / "manifest.json").write_text(
+        json.dumps({"name": "detector", "family": "rfdetr", "licence": "Apache-2.0", "sha256": hashlib.sha256(b"x").hexdigest()})
+    )
+    assert ModelSet.load(tmp_path, verify=True) is not None
+
+
+def test_settings_version_changes_with_colours():
+    from sports_watcher.perception.models import settings_version
+
+    a = settings_version("abc", home_color="white", away_color="navy")
+    b = settings_version("abc", home_color="navy", away_color="white")
+    assert a != b and len(a) == 12 and settings_version("abc", home_color="white", away_color="navy") == a

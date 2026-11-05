@@ -124,7 +124,10 @@ class PlayBuilder:
         start = players[shooter_id][1]
         target = basket_xy(self.scene.league, rim_side)  # type: ignore[arg-type]
         if outcome == "miss":
-            target = (target[0], target[1] + 0.3)
+            # Long, off the back of the rim: the side camera sees that as an offset in
+            # image x, beyond the rim's span, unlike an offset in court depth.
+            direction = 1.0 if target[0] > start[0] else -1.0
+            target = (target[0] + 0.4 * direction, target[1])
         out = []
         n = round(flight_s * self.fps)
         for i in range(1, n + 1):

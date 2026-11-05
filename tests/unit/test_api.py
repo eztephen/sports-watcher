@@ -79,3 +79,18 @@ def test_websocket_client_disconnect_releases_the_subscription():
     wait_until(lambda: watcher.broadcaster.subscriber_count == 0, timeout=5)
     c.post(f"/api/v1/games/{gid}/stop")
     wait_until(lambda: c.get(f"/api/v1/games/{gid}").json()["status"]["state"] == "ended")
+
+
+def test_create_builds_a_perceiver_from_the_request_colours(monkeypatch):
+    import sports_watcher.api.jobs as jobs_module
+
+    calls = []
+
+    def fake_build(settings, league, clip, home_color, away_color, use_cache=True):
+        calls.append((home_color, away_color, clip))
+
+    monkeypatch.setattr(jobs_module, "build_perceiver", fake_build)
+    c, _ = make_client(n_frames=5)
+    body = {"source": {"kind": "stub"}, "home": "TNT", "away": "Magnolia", "home_color": "white", "away_color": "navy"}
+    assert c.post("/api/v1/games", json=body).status_code == 201
+    assert calls == [("white", "navy", None)]

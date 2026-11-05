@@ -5,6 +5,7 @@ model means no homography, no SigLIP means no teams and no probe, no probe means
 
 from __future__ import annotations
 
+import hashlib
 import time
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from sports_watcher.perception.court import (
     order_template,
 )
 from sports_watcher.perception.detector import OnnxDetector, OnnxKeypointModel
-from sports_watcher.perception.models import ModelSet
+from sports_watcher.perception.models import ModelSet, settings_version
 from sports_watcher.perception.team import SiglipEmbedder, TeamAssigner, parse_color
 from sports_watcher.perception.tracker import BallFilter, Detection, Tracker
 from sports_watcher.perception.types import (
@@ -52,7 +53,6 @@ class OnnxPerceiver:
         probe_every_s: float = 0.2,
         providers: list[str] | None = None,
     ) -> None:
-        self.version = models.version
         self.keypoint_every_s = keypoint_every_s
         self.probe_every_s = probe_every_s
         self.timings: dict[str, float] = {}
@@ -73,6 +73,16 @@ class OnnxPerceiver:
             names, xy = load_template(template_path, league)
             self._court = CourtMapper(order_template(names, xy, manifest.keypoints))
             self._keypoints = OnnxKeypointModel(models.court, manifest, providers)
+        template_text = Path(template_path).read_text(encoding="utf-8") if template_path and Path(template_path).is_file() else ""
+        self.version = settings_version(
+            models.version,
+            home_color=home_color,
+            away_color=away_color,
+            league=league.name,
+            template=hashlib.sha256(template_text.encode()).hexdigest()[:12],
+            keypoint_every_s=keypoint_every_s,
+            probe_every_s=probe_every_s,
+        )
 
         self._embed: SiglipEmbedder | None = SiglipEmbedder(models.siglip, providers) if models.siglip else None
         self._team: TeamAssigner | None = None

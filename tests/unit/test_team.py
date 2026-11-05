@@ -74,3 +74,23 @@ def test_siglip_preprocess_shape_and_range():
     x = SiglipEmbedder.preprocess(np.full((300, 120, 3), 255, np.uint8))
     assert x.shape == (1, 3, 224, 224) and x.dtype == np.float32 and np.allclose(x, 1.0)
     assert np.allclose(SiglipEmbedder.preprocess(np.zeros((10, 10, 3), np.uint8)), -1.0)
+
+
+def test_align_labels_to_previous_centroids():
+    from sports_watcher.perception.team import align_labels
+
+    prev = np.array([[0.0, 0.0], [10.0, 10.0]])
+    assert align_labels(prev, np.array([[10.1, 9.9], [0.2, -0.1]])) == {0: 1, 1: 0}
+    assert align_labels(prev, np.array([[0.1, 0.1], [9.0, 11.0]])) == {0: 0, 1: 1}
+
+
+def test_refit_without_colours_keeps_the_mapping():
+    a = TeamAssigner(fake_embed, None, None, fit_after=20, refit_every_s=30.0)
+    for i in range(10):
+        a.observe(i, RED, 0.0)
+        a.observe(100 + i, BLUE, 0.0)
+    first = (a.team_of(0), a.team_of(100))
+    for t in range(1, 40):  # more samples, blue first this time, through a refit at 30 s
+        a.observe(100 + (t % 10), BLUE, float(t))
+        a.observe(t % 10, RED, float(t))
+    assert (a.team_of(0), a.team_of(100)) == first and first[0] != first[1]
