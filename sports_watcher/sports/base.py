@@ -10,6 +10,7 @@ from typing import Literal, Protocol
 from sports_watcher.config import LeagueConfig
 from sports_watcher.events.model import Evidence, PlayerRef
 from sports_watcher.perception.scoreboard import ScoreboardState
+from sports_watcher.perception.types import VisionFrame
 from sports_watcher.state.game_state import GameState
 
 Verdict = Literal["pending", "confirmed", "retracted"]
@@ -22,6 +23,7 @@ class Observation:
     t_wall: datetime
     scoreboard: ScoreboardState | None = None
     camera_state: str = "main"
+    vision: VisionFrame | None = None
 
 
 @dataclass

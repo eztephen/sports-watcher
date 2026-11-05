@@ -50,6 +50,9 @@ class Evidence(BaseModel):
     cues: list[CommentaryCueRef] = Field(default_factory=list)
     camera_state: str | None = None
     detector_confidence: float | None = None
+    homography_confidence: float | None = None
+    clock_state: str | None = None
+    track_id: int | None = None
     note: str | None = None
 
 
