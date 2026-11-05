@@ -2,14 +2,17 @@
 
 Watches a basketball broadcast (file, URL or YouTube live) and emits a timestamped
 stream of game events. M0 reads the scoreboard: score changes, period boundaries, and
-the "firsts" they imply (first team to score, race to 10 and 20). Later milestones add
-possession, shots, rebounds and turnovers from vision, and the commentators' voices as
-a third evidence channel. The event stream is meant to feed micro-betting markets on
-the GT/APS sportsbook.
+the "firsts" they imply (first team to score, race to 10 and 20). M1 adds vision:
+players, ball, rim, teams, court position and camera state, and from those possession,
+shot attempts, made and missed shots, free throws, rebounds, turnovers, timeouts and the
+tip-off. M2 adds the commentators' voices as a third evidence channel. The event stream
+is meant to feed micro-betting markets on the GT/APS sportsbook.
 
-- Design: `docs/superpowers/specs/2026-10-31-sports-watcher-v1-design.md`
+- Design: `docs/superpowers/specs/2026-10-31-sports-watcher-v1-design.md` and the M1
+  addendum `docs/superpowers/specs/2026-10-31-sports-watcher-m1-vision-design.md`
 - Research: `docs/research/2026-10-31-sports-watcher-research.md`
-- M0 plan: `docs/superpowers/plans/2026-10-31-sports-watcher-m0-skeleton.md`
+- Plans: `docs/superpowers/plans/2026-10-31-sports-watcher-m0-skeleton.md`,
+  `docs/superpowers/plans/2026-10-31-sports-watcher-m1-vision.md`
 
 ## Setup
 
@@ -45,6 +48,34 @@ to backfill, `WS /api/v1/games/{id}/events` for live events (retractions include
 
 `--source` also takes `rtsp://`, `srt://`, `udp://`, an HLS manifest, or
 `youtube:<watch url>` (development only; resolved with yt-dlp).
+
+## Vision (M1)
+
+The watcher runs vision when weights are under `models/` (gitignored); without them it
+runs scoreboard-only, exactly as M0. Get the weights by training them on Colab
+(`training/README.md`) or from a release of this repository:
+
+```bash
+./.venv/bin/python scripts/download_models.py
+```
+
+Perceive a clip once into the cache, then every run of the rules reads the cache:
+
+```bash
+./.venv/bin/python scripts/perceive.py --source data/golden/pba_ros_cvg_vision.mp4 --home-color white --away-color navy
+```
+
+```bash
+./.venv/bin/python scripts/run_watch.py --source data/golden/pba_ros_cvg_vision.mp4 --home "Rain or Shine" --away Converge --home-color white --away-color navy --camera-log tmp/camera.jsonl
+```
+
+`--home-color` and `--away-color` name the jersey colours (`white`, `navy`, `#1e3a8a`)
+that map the two clusters of player crops to home and away. `--no-vision` forces
+scoreboard-only; `--no-cache` ignores the cache. Time the perception stages with
+`scripts/bench_perceiver.py`.
+
+Vision rules only fire while the game clock is running (replays, timeouts and dead
+balls freeze them); free throws and the tip-off are the exceptions.
 
 ## Calibrate the scoreboard region
 
