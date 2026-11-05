@@ -1,0 +1,11 @@
+{"start": 0.5, "end": 3.5, "state": "main"}
+{"start": 4.5, "end": 6.5, "state": "closeup"}
+{"start": 7.5, "end": 8.5, "state": "graphics"}
+{"start": 9.5, "end": 13.5, "state": "replay"}
+{"start": 14.5, "end": 22.5, "state": "closeup"}
+{"start": 23.5, "end": 24.5, "state": "graphics"}
+{"start": 25.5, "end": 26.5, "state": "main"}
+{"start": 27.5, "end": 29.5, "state": "closeup"}
+{"start": 30.5, "end": 53.5, "state": "main"}
+{"start": 54.5, "end": 107.5, "state": "closeup"}
+{"start": 108.5, "end": 119.5, "state": "graphics"}
