@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import Protocol
 
 from sports_watcher.config import LeagueConfig
 from sports_watcher.events.model import Evidence, PlayerRef
@@ -13,7 +13,8 @@ from sports_watcher.perception.scoreboard import ScoreboardState
 from sports_watcher.perception.types import VisionFrame
 from sports_watcher.state.game_state import GameState
 
-Verdict = Literal["pending", "confirmed", "retracted"]
+# "pending" | "confirmed" | "retracted" | "retracted:<reason>" (the engine records the reason)
+Verdict = str
 
 
 @dataclass

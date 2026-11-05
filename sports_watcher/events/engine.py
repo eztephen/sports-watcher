@@ -134,7 +134,10 @@ class EventEngine:
         if resolution == "confirmed":
             event = pending.event.confirmed_copy(seq=self._next_seq(), emitted_wall=now)
         else:
-            reason = RETRACT_REASONS.get(resolution, resolution)
+            if resolution.startswith("retracted:"):
+                reason = resolution.split(":", 1)[1]
+            else:
+                reason = RETRACT_REASONS.get(resolution, resolution)
             event = pending.event.retracted_copy(
                 seq=self._next_seq(), emitted_wall=now, reason=reason
             )

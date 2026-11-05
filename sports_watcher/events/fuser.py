@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from sports_watcher.events.model import Event
 from sports_watcher.sports.base import EventDraft, Observation, Verdict
 from sports_watcher.state.game_state import GameState
 
-Resolution = Literal["confirmed", "retracted", "ttl"]
+Resolution = str  # "confirmed" | "retracted" | "retracted:<reason>" | "ttl"
 
 
 @dataclass

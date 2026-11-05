@@ -12,6 +12,11 @@ from sports_watcher.sports.basketball.rules import (
     PeriodStartRule,
     ScoreChangeRule,
 )
+from sports_watcher.sports.basketball.rules_possession import (
+    PossessionStartRule,
+    ReboundRule,
+    TurnoverRule,
+)
 from sports_watcher.sports.basketball.vision_state import (
     apply_vision,
     freeze_vision,
@@ -29,7 +34,14 @@ class BasketballPlugin:
 
     def __init__(self, league: LeagueConfig) -> None:
         self.league = league
-        self._rules: list[Rule] = [ScoreChangeRule(), PeriodStartRule(league), PeriodEndRule()]
+        self._rules: list[Rule] = [
+            ScoreChangeRule(),
+            PeriodStartRule(league),
+            PeriodEndRule(),
+            PossessionStartRule(),
+            ReboundRule(),
+            TurnoverRule(league),
+        ]
 
     def update_state(self, state: GameState, obs: Observation) -> GameState:
         """Apply a scoreboard read when it is confident and plausible.
