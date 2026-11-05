@@ -105,9 +105,9 @@ class OnnxPerceiver:
 
     def perceive(self, frame: Frame) -> VisionFrame:
         t, img = frame.pts_s, frame.image
-        dets = self._timed("detector", lambda: self._detector.detect(img))
+        dets = self._timed("detector", self._detector.detect, img)
         people = [d for d in dets if d.cls in ("player", "referee")]
-        raw_tracks = self._timed("tracker", lambda: self._tracker.update(people, t))
+        raw_tracks = self._timed("tracker", self._tracker.update, people, t)
         rim = self._update_rim([d for d in dets if d.cls == "rim"], t)
         ball = self._update_ball(img, dets, t)
         homography = self._update_court(img, t)
@@ -119,9 +119,9 @@ class OnnxPerceiver:
 
     # -- stages -------------------------------------------------------------------------
 
-    def _timed(self, name: str, fn):
+    def _timed(self, name: str, fn, *args):
         t0 = time.perf_counter()
-        out = fn()
+        out = fn(*args)
         dt = time.perf_counter() - t0
         n = self._counts.get(name, 0)
         self.timings[name] = (self.timings.get(name, 0.0) * n + dt) / (n + 1)
@@ -143,7 +143,7 @@ class OnnxPerceiver:
 
     def _update_ball(self, img: np.ndarray, dets: list[Detection], t: float) -> BallObs | None:
         pred = self._ball.predict(t)
-        det = self._timed("ball", lambda: self._ball_finder.find(img, pred, dets))
+        det = self._timed("ball", self._ball_finder.find, img, pred, dets)
         if det is not None:
             cx, cy = box_center(det.box)
             radius = max(det.box[2] - det.box[0], det.box[3] - det.box[1]) / 2.0
@@ -154,7 +154,7 @@ class OnnxPerceiver:
         if self._court is None or self._keypoints is None:
             return None
         if self._last_kp_pts is None or t - self._last_kp_pts >= self.keypoint_every_s:
-            kp_xy, kp_conf = self._timed("keypoints", lambda: self._keypoints.keypoints(img))
+            kp_xy, kp_conf = self._timed("keypoints", self._keypoints.keypoints, img)
             self._court.update(kp_xy, kp_conf, t)
             self._last_kp_pts = t
         return self._court.current(t)
@@ -169,7 +169,7 @@ class OnnxPerceiver:
                 x1, y1, x2, y2 = (int(max(0, ts.box[0])), int(max(0, ts.box[1])), int(min(w, ts.box[2])), int(min(h, ts.box[3])))
                 if x2 > x1 + 1 and y2 > y1 + 1:
                     crop = img[y1:y2, x1:x2]
-                    self._timed("team", lambda: self._team.observe(ts.track_id, crop, t))
+                    self._timed("team", self._team.observe, ts.track_id, crop, t)
                 team = self._team.team_of(ts.track_id)
             tracks.append(Track(ts.track_id, ts.box, ts.cls, team, feet, ts.confidence))  # type: ignore[arg-type]
         return tracks
@@ -181,7 +181,7 @@ class OnnxPerceiver:
             players = [tr for tr in tracks if tr.cls == "player"]
             median_h = float(np.median([box_height(tr.box) for tr in players]) / img.shape[0]) if players else 0.0
             feats = frame_features(homography.inliers if homography is not None else 0, len(players), median_h)
-            emb = self._timed("probe", lambda: self._embed(img))
+            emb = self._timed("probe", self._embed, img)
             self._hint = self._probe.predict(emb, feats)
             self._last_probe_pts = t
         return self._hint
