@@ -80,9 +80,15 @@ def update_clock_gate(prev: GameState, new: GameState, obs: Observation) -> None
 # -- pure geometry helpers --------------------------------------------------------------
 
 
+BOX_GROW_TOP = 0.1  # hands above the head; a ball higher than that is airborne
+RISING_PX = 0.5  # image-y decrease per frame that counts as rising
+
+
 def grown(box: Box, factor: float) -> Box:
-    g = box_height(box) * factor
-    return (box[0] - g, box[1] - g, box[2] + g, box[3] + g)
+    """A player's reach: the box widened by ``factor`` of its height on each side and
+    raised by ``BOX_GROW_TOP`` of its height (arms up), feet unchanged."""
+    h = box_height(box)
+    return (box[0] - h * factor, box[1] - h * BOX_GROW_TOP, box[2] + h * factor, box[3])
 
 
 def _inside(xy: tuple[float, float], box: Box) -> bool:
@@ -207,6 +213,11 @@ def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
         return
     if new.holder is not None and new.holder.track_id == cand:
         new.holder_candidate = None
+        return
+    if prev.ball is not None and vf.ball.xy[1] < prev.ball.xy[1] - RISING_PX:
+        # A rising ball is airborne: it may pass over a farther player's box in 2D
+        # without being in anyone's hands. No candidate until it stops rising.
+        new.holder, new.holder_candidate = None, None
         return
     since = t
     if prev.holder_candidate is not None and prev.holder_candidate[0] == cand:

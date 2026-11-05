@@ -12,12 +12,17 @@ from sports_watcher.sports.basketball.rules import (
     PeriodStartRule,
     ScoreChangeRule,
 )
+from sports_watcher.sports.basketball.rules_clock import TimeoutRule, TipOffRule
 from sports_watcher.sports.basketball.rules_possession import (
     PossessionStartRule,
     ReboundRule,
     TurnoverRule,
 )
-from sports_watcher.sports.basketball.rules_shots import ShotAttemptRule, ShotOutcomeRule
+from sports_watcher.sports.basketball.rules_shots import (
+    FreeThrowRule,
+    ShotAttemptRule,
+    ShotOutcomeRule,
+)
 from sports_watcher.sports.basketball.vision_state import (
     apply_vision,
     freeze_vision,
@@ -44,6 +49,9 @@ class BasketballPlugin:
             TurnoverRule(league),
             ShotAttemptRule(),
             ShotOutcomeRule(),
+            FreeThrowRule(league),
+            TimeoutRule(),
+            TipOffRule(league),
         ]
 
     def update_state(self, state: GameState, obs: Observation) -> GameState:

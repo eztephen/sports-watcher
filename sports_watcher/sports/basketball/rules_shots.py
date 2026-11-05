@@ -5,17 +5,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sports_watcher.config import LeagueConfig
 from sports_watcher.events.model import PlayerRef
 from sports_watcher.sports.base import EventDraft, Observation
 from sports_watcher.sports.basketball.confirmers import (
     always_confirm,
     base_confidence,
     delta_within,
+    ft_resolves,
     holder_or_late_delta,
     rim_or_delta,
     team_delta,
     vision_evidence,
 )
+from sports_watcher.sports.basketball.geometry import free_throw_xy
 from sports_watcher.state.game_state import GameState
 
 ATTEMPT_CONFIDENCE = 0.7
@@ -27,6 +30,10 @@ DELTA_WINDOW_S = 3.0
 MISS_AFTER_LEAVE_S = 3.0
 NO_RIM_MISS_S = 1.5
 OPEN_ATTEMPT_MAX_S = 10.0
+FT_ATTEMPT_CONFIDENCE = 0.6
+FT_MADE_CONFIDENCE = 0.9
+FT_MISSED_CONFIDENCE = 0.6
+FT_RESOLVE_S = 3.0
 ZONE_POINTS = {"two": 2, "three": 3}
 POINTS_ZONE = {1: "ft", 2: "two", 3: "three"}
 
@@ -221,3 +228,84 @@ class ShotOutcomeRule:
             court_xy=court_xy,
             zone=zone,
         )
+
+
+@dataclass
+class _OpenFreeThrow:
+    t_pts: float
+    team: str
+    track_id: int
+    score_at: tuple[int, int]
+    resolved: bool = False
+
+
+class FreeThrowRule:
+    """Clock stopped, a lane formation, and the shooter releasing from the line: the
+    attempt on release, then made on a +1 delta within 3 s or missed at 3 s."""
+
+    name = "free_throw"
+
+    def __init__(self, league: LeagueConfig) -> None:
+        self._league = league
+        self._last_release: float | None = None
+        self._open: list[_OpenFreeThrow] = []
+
+    def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
+        drafts: list[EventDraft] = []
+        rel, lf = new.last_release, new.lane_formation
+        if (
+            rel is not None
+            and rel.t_pts != self._last_release
+            and lf is not None
+            and rel.track_id == lf.shooter_track_id
+            and not new.clock_running
+        ):
+            self._last_release = rel.t_pts
+            self._open.append(_OpenFreeThrow(rel.t_pts, lf.team, rel.track_id, new.score()))
+            drafts.append(
+                EventDraft(
+                    type="free_throw_attempt",
+                    team=lf.team,
+                    t_pts=rel.t_pts,
+                    evidence=vision_evidence(new, obs, track_id=rel.track_id),
+                    confidence=base_confidence(FT_ATTEMPT_CONFIDENCE, new),
+                    confirmer=ft_resolves(lf.team, rel.t_pts, new.score()),
+                    player=PlayerRef(track_id=rel.track_id, confidence=0.0),
+                    court_xy=free_throw_xy(self._league, lf.side),
+                    zone="ft",
+                )
+            )
+        for ft in self._open:
+            if ft.resolved:
+                continue
+            player = PlayerRef(track_id=ft.track_id, confidence=0.0)
+            if team_delta(ft.team, ft.score_at, new.score()) == 1 and obs.t_pts - ft.t_pts <= FT_RESOLVE_S:
+                ft.resolved = True
+                drafts.append(
+                    EventDraft(
+                        type="free_throw_made",
+                        team=ft.team,
+                        t_pts=ft.t_pts,
+                        evidence=vision_evidence(new, obs, track_id=ft.track_id, points=1),
+                        confidence=base_confidence(FT_MADE_CONFIDENCE, new),
+                        confirmer=always_confirm(),
+                        player=player,
+                        zone="ft",
+                    )
+                )
+            elif obs.t_pts - ft.t_pts >= FT_RESOLVE_S:
+                ft.resolved = True
+                drafts.append(
+                    EventDraft(
+                        type="free_throw_missed",
+                        team=ft.team,
+                        t_pts=ft.t_pts,
+                        evidence=vision_evidence(new, obs, track_id=ft.track_id),
+                        confidence=base_confidence(FT_MISSED_CONFIDENCE, new),
+                        confirmer=holder_or_late_delta(ft.team, ft.t_pts, ft.score_at),
+                        player=player,
+                        zone="ft",
+                    )
+                )
+        self._open = [ft for ft in self._open if not ft.resolved]
+        return drafts
