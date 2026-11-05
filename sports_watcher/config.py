@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     device: str = "cpu"
     configs_dir: Path = Path("configs")
     data_dir: Path = Path("data")
+    models_dir: Path = Path("models")
+    cache_dir: Path = Path("data/cache")
     log_level: str = "INFO"
 
 
@@ -54,6 +56,9 @@ class LeagueConfig(BaseModel):
     court_width_m: float
     three_point_radius_m: float
     three_point_corner_m: float
+    basket_from_baseline_m: float
+    free_throw_line_from_baseline_m: float
+    key_width_m: float
     period_length_s: int
     periods: int
     overtime_length_s: int

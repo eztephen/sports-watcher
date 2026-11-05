@@ -19,11 +19,16 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "websockets>=12",
     "rapidocr-onnxruntime>=1.3",
+    "onnxruntime>=1.18",
+    "filterpy>=1.4.5",
+    "scipy>=1.13",
+    "scikit-learn>=1.5",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27", "pillow>=10", "ruff>=0.6"]
 youtube = ["yt-dlp>=2025.1.1"]
+train = ["rfdetr[train,onnx]>=1.11", "torch>=2.4", "transformers>=4.44", "roboflow>=1.1"]
 
 [tool.setuptools.packages.find]
 include = ["sports_watcher*"]

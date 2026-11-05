@@ -9,6 +9,7 @@ data/golden/*
 !data/golden/README.md
 !data/golden/*.truth.jsonl
 !data/golden/*.meta.json
+!data/golden/*.camera.jsonl
 tmp/
 .pytest_cache/
 .ruff_cache/

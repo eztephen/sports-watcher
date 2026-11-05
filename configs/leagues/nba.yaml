@@ -3,6 +3,9 @@ court_length_m: 28.65
 court_width_m: 15.24
 three_point_radius_m: 7.24
 three_point_corner_m: 6.71
+basket_from_baseline_m: 1.6
+free_throw_line_from_baseline_m: 5.79
+key_width_m: 4.88
 period_length_s: 720
 periods: 4
 overtime_length_s: 300
