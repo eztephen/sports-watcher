@@ -44,3 +44,62 @@ class CameraStateTracker:
             self._state = hint
             self._pending = None
         return self._state
+
+
+# -- the probe --------------------------------------------------------------------------
+
+import json
+from pathlib import Path
+
+import numpy as np
+
+KEYPOINTS_TOTAL = 33.0
+PLAYERS_TOTAL = 12.0
+
+
+def frame_features(inliers: int, n_players: int, median_box_h_frac: float) -> np.ndarray:
+    """Three cheap cues next to the embedding: homography inliers, player count and the
+    median player height as a fraction of the frame, each scaled to about 0..1."""
+    return np.array(
+        [inliers / KEYPOINTS_TOTAL, n_players / PLAYERS_TOTAL, median_box_h_frac], dtype=np.float32
+    )
+
+
+class CameraProbe:
+    """A linear classifier over ``concat(embedding, features)``; softmax gives the hint."""
+
+    def __init__(self, coef: np.ndarray, intercept: np.ndarray, classes: list[str]) -> None:
+        self.coef = np.asarray(coef, dtype=np.float64)
+        self.intercept = np.asarray(intercept, dtype=np.float64)
+        self.classes = list(classes)
+
+    @property
+    def embedding_dim(self) -> int:
+        return self.coef.shape[1] - 3
+
+    def predict(self, embedding: np.ndarray, features: np.ndarray) -> tuple[CameraHint, float]:
+        x = np.concatenate([np.asarray(embedding, dtype=np.float64).ravel(), np.asarray(features, dtype=np.float64).ravel()])
+        logits = self.coef @ x + self.intercept
+        logits = logits - logits.max()
+        probs = np.exp(logits) / np.exp(logits).sum()
+        best = int(probs.argmax())
+        return self.classes[best], float(probs[best])  # type: ignore[return-value]
+
+    def save(self, path: Path) -> None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(
+            json.dumps(
+                {
+                    "coef": self.coef.tolist(),
+                    "intercept": self.intercept.tolist(),
+                    "classes": self.classes,
+                    "embedding_dim": self.embedding_dim,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> CameraProbe:
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls(np.array(d["coef"]), np.array(d["intercept"]), d["classes"])
