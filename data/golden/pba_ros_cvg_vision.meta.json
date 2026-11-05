@@ -1,0 +1,23 @@
+{
+  "league": "pba",
+  "broadcaster": "one_sports",
+  "home": "Rain or Shine",
+  "away": "Converge",
+  "home_color": "white",
+  "away_color": "navy",
+  "ocr_every_n_frames": 15,
+  "checks": {
+    "score_change": 0.9,
+    "possession_start": 0.8,
+    "shot_attempt": 0.8
+  },
+  "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 00:28:00-00:31:00 (minutes 1:00 to 4:00 of the 00:27:00-00:31:00 download)",
+  "notes": "Main-camera play from about 7 to 16 s, 20 to 40 s, 43 to 57 s, 60 to 77 s, 81 to 94 s, 150 to 169 s and 172 to 180 s; free throws around 116 to 125 s; a top-down rim replay at 128 to 132 s and close-ups elsewhere. Top row of the bug is the away team (Converge), bottom row home (Rain or Shine).",
+  "truth_status": "drafted from 2 fps and 4 fps contact sheets on 2026-11-05; needs a pass against the video",
+  "truth_uncertain": [
+    "possession changes: this feed resets the shot clock to 24 on offensive rebounds (seen at 55.5 s with the Rain or Shine putback), so the resets at 39.5, 75.0 and 167.5 s are read as offensive rebounds, not changes of possession; confirm at 39-41 s and 75-77 s where the frames look like a transition",
+    "the Converge basket at 40.0 s and the one at 76.75 s fall at the cut to a close-up; the release times are +/-0.5 s",
+    "the second free throw (133.0 s) is not on the main camera; only its score change at 134.5 s is observable",
+    "zones: the 166.0 s Converge attempt may be a three; left without a zone"
+  ]
+}

@@ -5,5 +5,10 @@
   "away": "Converge",
   "ocr_every_n_frames": 15,
   "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 00:25:00-00:27:00",
-  "notes": "Q1, Converge 13 -> 15 at clip 47.5 s (bug reappears after a cut already showing 15); a full-screen stats graphic from ~96 s to the end must produce no events."
+  "notes": "Q1, Converge 13 -> 15 at clip 47.5 s (bug reappears after a cut already showing 15); a full-screen stats graphic from ~96 s to the end must produce no events.",
+  "home_color": "white",
+  "away_color": "navy",
+  "checks": {
+    "score_change": 0.9
+  }
 }
