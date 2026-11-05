@@ -234,6 +234,8 @@ def _apply_release(prev: GameState, new: GameState, vf, t: float, league: League
         return  # the ball went straight into another player's hands
     tr = _track(prev.tracks, prev.holder.track_id)
     feet = tr.feet_xy if tr is not None else None
+    if prev.homography_confidence < MIN_HOMOGRAPHY_CONF:
+        feet = None  # no trustworthy court position without a homography
     new.last_release = Release(
         t_pts=prev.t_pts,
         track_id=prev.holder.track_id,

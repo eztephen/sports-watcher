@@ -13,7 +13,7 @@ from sports_watcher.perception.scoreboard import ScoreboardState
 from sports_watcher.perception.types import VisionFrame
 from sports_watcher.state.game_state import GameState
 
-# "pending" | "confirmed" | "retracted" | "retracted:<reason>" (the engine records the reason)
+# "pending" | "confirmed" | "confirmed:<confidence>" | "retracted" | "retracted:<reason>"
 Verdict = str
 
 

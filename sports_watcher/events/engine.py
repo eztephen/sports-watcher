@@ -131,8 +131,11 @@ class EventEngine:
 
     def _terminal(self, pending: PendingEvent, resolution: str) -> Event:
         now = datetime.now(UTC)
-        if resolution == "confirmed":
-            event = pending.event.confirmed_copy(seq=self._next_seq(), emitted_wall=now)
+        if resolution == "confirmed" or resolution.startswith("confirmed:"):
+            confidence = float(resolution[10:]) if resolution.startswith("confirmed:") else None
+            event = pending.event.confirmed_copy(
+                seq=self._next_seq(), emitted_wall=now, confidence=confidence
+            )
         else:
             if resolution.startswith("retracted:"):
                 reason = resolution.split(":", 1)[1]

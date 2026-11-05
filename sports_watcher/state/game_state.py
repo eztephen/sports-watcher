@@ -67,6 +67,7 @@ class GameState:
     has_scoreboard: bool = False  # True once a confident scoreboard read has been applied
 
     # -- vision (M1) --------------------------------------------------------------------
+    has_vision: bool = False  # True once any observation carried a VisionFrame
     tracks: list[Track] = field(default_factory=list)
     ball: BallObs | None = None
     rim: Box | None = None

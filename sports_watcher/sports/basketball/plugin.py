@@ -17,6 +17,7 @@ from sports_watcher.sports.basketball.rules_possession import (
     ReboundRule,
     TurnoverRule,
 )
+from sports_watcher.sports.basketball.rules_shots import ShotAttemptRule, ShotOutcomeRule
 from sports_watcher.sports.basketball.vision_state import (
     apply_vision,
     freeze_vision,
@@ -41,6 +42,8 @@ class BasketballPlugin:
             PossessionStartRule(),
             ReboundRule(),
             TurnoverRule(league),
+            ShotAttemptRule(),
+            ShotOutcomeRule(),
         ]
 
     def update_state(self, state: GameState, obs: Observation) -> GameState:
@@ -53,6 +56,8 @@ class BasketballPlugin:
         """
         new = replace(state, t_pts=obs.t_pts, camera_state=obs.camera_state)
         self._apply_scoreboard(state, new, obs)
+        if obs.vision is not None:
+            new.has_vision = True
         update_clock_gate(state, new, obs)
         if obs.camera_state != "main":
             freeze_vision(state, new, obs)

@@ -1,7 +1,8 @@
 """Confirmers for the vision rules, plus the evidence and confidence helpers they share.
 
 A confirmer runs on every later observation until it answers. Verdicts are ``pending``,
-``confirmed``, ``retracted`` or ``retracted:<reason>``; the engine records the reason.
+``confirmed``, ``confirmed:<confidence>`` (the terminal copy takes that confidence),
+``retracted`` or ``retracted:<reason>`` (the engine records the reason).
 """
 
 from __future__ import annotations
@@ -144,10 +145,18 @@ def rim_or_delta(team: Team, since_pts: float, score_before: Score) -> Confirmer
     return confirm
 
 
-def delta_within(team: Team, points: tuple[int, ...], score_before: Score) -> Confirmer:
+def delta_within(
+    team: Team, points: tuple[int, ...], score_before: Score, confirmed_confidence: float | None = None
+) -> Confirmer:
+    """Confirmed by a delta in ``points`` (the terminal copy takes ``confirmed_confidence``
+    when given, since two signals agree); a 2 or 3 outside ``points`` retracts."""
+
     def confirm(draft: EventDraft, state: GameState, obs: Observation) -> Verdict:
-        if team_delta(team, score_before, state.score()) in points:
-            return "confirmed"
+        d = team_delta(team, score_before, state.score())
+        if d in points:
+            return "confirmed" if confirmed_confidence is None else f"confirmed:{confirmed_confidence}"
+        if d in (2, 3):
+            return "retracted:points_disagree"
         return "pending"
 
     return confirm
