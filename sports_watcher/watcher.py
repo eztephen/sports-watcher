@@ -1,4 +1,5 @@
-"""Runs one game: source → frames → scoreboard → engine → sinks, with reconnects."""
+"""Runs one game: source → frames → scoreboard + perception → engine → sinks, with
+reconnects."""
 
 from __future__ import annotations
 
@@ -20,12 +21,15 @@ from sports_watcher.ingest.base import Frame, FrameSource, SourceSpec
 from sports_watcher.ingest.factory import open_source
 from sports_watcher.ingest.latest_frame import LatestFrameReader
 from sports_watcher.ingest.url import READ_TIMEOUT_S
+from sports_watcher.perception.camera_state import CameraStateTracker
+from sports_watcher.perception.perceiver import Perceiver
 from sports_watcher.perception.scoreboard import ScoreboardReader, TextReader
 from sports_watcher.sports.base import Observation
 from sports_watcher.sports.basketball.plugin import BasketballPlugin
 
 WatcherState = Literal["starting", "running", "ended", "failed"]
 RECONNECTABLE_KINDS = {"url", "youtube"}
+PERCEPTION_HZ = 30.0
 
 
 class WatcherStatus(BaseModel):
@@ -40,6 +44,7 @@ class WatcherStatus(BaseModel):
     score: tuple[int, int]
     events_emitted: int
     error: str | None
+    camera_state: str = "main"
 
 
 class GameWatcher:
@@ -61,6 +66,9 @@ class GameWatcher:
         reconnect_backoff_s: float = 1.0,
         stall_timeout_s: float = 30.0,
         healthy_frames_to_reset: int = 300,
+        perceiver: Perceiver | None = None,
+        perceive_every_n_frames: int | None = None,
+        log_camera_states: bool = False,
     ) -> None:
         self.spec = spec
         self.league = league
@@ -81,6 +89,12 @@ class GameWatcher:
         self._sinks: list[EventSink] = [self._memory, self.broadcaster, *sinks]
         self._text_reader = text_reader
         self._scoreboard: ScoreboardReader | None = None
+        self._perceiver = perceiver
+        self._perceive_every = perceive_every_n_frames
+        self._first_pts: float | None = None
+        self._camera = CameraStateTracker()
+        self.log_camera_states = log_camera_states
+        self.camera_log: list[tuple[float, str]] = []
         self._plugin = BasketballPlugin(league)
         self._engine: EventEngine | None = None
 
@@ -142,6 +156,7 @@ class GameWatcher:
             return exc
         try:
             self._ensure_engine(source)
+            self._reset_perception()
             self._set_state("running")
             for frame, dropped in self._frame_stream(source):
                 if self._stop.is_set():
@@ -198,7 +213,20 @@ class GameWatcher:
         scoreboard = None
         if (self._frames_processed - 1) % self.ocr_every_n_frames == 0:
             scoreboard = self._scoreboard_reader().read(frame.image)
-        obs = Observation(frame_index=frame.index, t_pts=frame.pts_s, t_wall=frame.wall, scoreboard=scoreboard)
+        vision = None
+        if self._perceiver is not None and (self._frames_processed - 1) % self._perception_cadence(frame) == 0:
+            vision = self._perceiver.perceive(frame)
+            state = self._camera.update(vision.camera_hint, vision.camera_confidence, frame.pts_s)
+            if self.log_camera_states:
+                self.camera_log.append((frame.pts_s, state))
+        obs = Observation(
+            frame_index=frame.index,
+            t_pts=frame.pts_s,
+            t_wall=frame.wall,
+            scoreboard=scoreboard,
+            camera_state=self._camera.state,
+            vision=vision,
+        )
         self._engine.step(obs)
         self._last_t_pts, self._last_wall = frame.pts_s, frame.wall
 
@@ -212,6 +240,26 @@ class GameWatcher:
             t_pts=self._last_t_pts,
             t_wall=datetime.now(UTC),
         )
+
+    def _perception_cadence(self, frame: Frame) -> int:
+        """Every n-th processed frame so perception runs at about PERCEPTION_HZ: derived
+        from the first two frames' pts unless set explicitly."""
+        if self._perceive_every is not None:
+            return self._perceive_every
+        if self._first_pts is None:
+            self._first_pts = frame.pts_s
+            return 1
+        dt = frame.pts_s - self._first_pts
+        if dt <= 0:
+            return 1
+        self._perceive_every = max(1, round((1.0 / dt) / PERCEPTION_HZ))
+        return self._perceive_every
+
+    def _reset_perception(self) -> None:
+        if self._perceiver is not None:
+            self._perceiver.reset()
+        self._camera.reset()
+        self._first_pts = None
 
     # -- helpers --------------------------------------------------------------------------
 
@@ -243,6 +291,10 @@ class GameWatcher:
     # -- read side ------------------------------------------------------------------------
 
     @property
+    def vision_enabled(self) -> bool:
+        return self._perceiver is not None
+
+    @property
     def events(self) -> list[Event]:
         return list(self._memory.events)
 
@@ -268,4 +320,5 @@ class GameWatcher:
             score=state.score() if state else (0, 0),
             events_emitted=len(self._memory.events),
             error=self._error,
+            camera_state=self._camera.state,
         )

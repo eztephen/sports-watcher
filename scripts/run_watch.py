@@ -15,9 +15,10 @@ import sys
 import uuid
 from pathlib import Path
 
-from sports_watcher.config import load_league
+from sports_watcher.config import Settings, load_league
 from sports_watcher.events.sinks import JsonlSink
 from sports_watcher.ingest.base import SourceSpec
+from sports_watcher.perception.perceiver import build_perceiver
 from sports_watcher.watcher import GameWatcher
 
 
@@ -40,19 +41,38 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--realtime", action="store_true", help="pace a file at its own frame rate")
     ap.add_argument("--ocr-every", type=int, default=5, help="run scoreboard OCR every N frames")
     ap.add_argument("--game-id", default=None)
+    ap.add_argument("--models", default=None, help="weights directory (default: SW_MODELS_DIR or models/)")
+    ap.add_argument("--no-vision", action="store_true", help="scoreboard only, even with weights")
+    ap.add_argument("--no-cache", action="store_true", help="do not read or write the perception cache")
+    ap.add_argument("--home-color", default=None, help="home jersey colour, e.g. white or #1e3a8a")
+    ap.add_argument("--away-color", default=None)
+    ap.add_argument("--perceive-every", type=int, default=None, help="run perception every N frames")
+    ap.add_argument("--camera-log", default=None, help="write {t_pts, state} lines per perception frame")
     args = ap.parse_args(argv)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    spec = source_spec(args.source, args.realtime)
+    league = load_league(args.league)
+    settings = Settings() if args.models is None else Settings(models_dir=Path(args.models))
+    perceiver = None
+    if not args.no_vision:
+        clip = Path(spec.path) if spec.kind == "file" and spec.path else None
+        perceiver = build_perceiver(
+            settings, league, clip, args.home_color, args.away_color, use_cache=not args.no_cache
+        )
     watcher = GameWatcher(
-        source_spec(args.source, args.realtime),
-        load_league(args.league),
+        spec,
+        league,
         args.broadcaster,
         game_id=args.game_id or uuid.uuid4().hex[:8],
         home=args.home,
         away=args.away,
         sinks=[JsonlSink(out)],
         ocr_every_n_frames=args.ocr_every,
+        perceiver=perceiver,
+        perceive_every_n_frames=args.perceive_every,
+        log_camera_states=args.camera_log is not None,
     )
     thread = watcher.start_in_thread()
     try:
@@ -63,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
         watcher.stop()
         thread.join(timeout=30)
     status = watcher.status()
+    if args.camera_log:
+        with Path(args.camera_log).open("w", encoding="utf-8") as fh:
+            fh.writelines(json.dumps({"t_pts": t, "state": state}) + "\n" for t, state in watcher.camera_log)
     print(json.dumps({"status": status.model_dump(), "firsts": watcher.firsts().model_dump()}, indent=2))
     print(f"events written to {out}", file=sys.stderr)
     return 0 if status.state == "ended" else 1

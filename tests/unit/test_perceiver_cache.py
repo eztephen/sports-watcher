@@ -46,3 +46,24 @@ def test_cached_perceiver_writes_through_then_hits(tmp_path):
     assert reopened.version == "v1" and reopened.perceive(_frame(0)) == _vf(0)
     with pytest.raises(CacheMiss):
         reopened.perceive(_frame(5))
+
+
+def test_build_perceiver_without_models_or_cache_is_none(tmp_path):
+    from sports_watcher.config import Settings
+    from sports_watcher.perception.perceiver import build_perceiver
+    from tests.helpers.leagues import fixture_league
+
+    s = Settings(_env_file=None, models_dir=tmp_path / "m", cache_dir=tmp_path / "c")
+    assert build_perceiver(s, fixture_league(), tmp_path / "clip.mp4", None, None) is None
+
+
+def test_build_perceiver_uses_cache_without_models(tmp_path):
+    from sports_watcher.config import Settings
+    from sports_watcher.perception.perceiver import build_perceiver
+    from tests.helpers.leagues import fixture_league
+
+    s = Settings(_env_file=None, models_dir=tmp_path / "m", cache_dir=tmp_path / "c")
+    clip = tmp_path / "clip.mp4"
+    CachedPerceiver(ScriptedPerceiver([_vf(0)], "v1"), cache_path(s.cache_dir, clip, "v1")).perceive(_frame(0))
+    p = build_perceiver(s, fixture_league(), clip, None, None)
+    assert isinstance(p, CachedPerceiver) and p.version == "v1"
