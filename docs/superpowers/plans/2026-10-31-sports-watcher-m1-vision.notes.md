@@ -71,3 +71,11 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
 - Final: minor (deferred): download_models.py filters ".." but not absolute zip member names
 - Final: minor (deferred): the perception cadence logic is duplicated in watcher._perception_cadence and offline.build_cache
 - Final: minor (deferred): court template fractions of length and width do not transfer key or arc geometry between FIBA and NBA courts
+
+## Weights follow-up (2026-11-06, branch feat/m1-weights)
+
+- SigLIP vision tower exported locally (`python -m training.export_siglip`, torch 2.15, transformers 5.22): `models/siglip/vision.onnx`, 372 MB, input `pixel_values` [1, 3, 224, 224], output `pooler_output` [1, 768].
+- Camera probe trained on the labels in `data/labels/camera_state.jsonl` at 2 fps: 610 training frames (main 366, closeup 202, graphics 36, replay 6) from `pba_ros_cvg_2700_3100.mp4` and `lal_gsw_060_150.mp4`, hold-out `pba_ros_cvg_2500_2700.mp4`. No detector yet, so the probe uses the embedding alone (feature weights zeroed). Held-out frame accuracy: plain fit 0.867 (main 1.0, closeup 0.908, graphics 0.654, replay 0.0); class-balanced fit 0.885 (main 1.0, closeup 0.923, graphics 0.731, replay 0.0). The balanced probe is `models/camera/probe.json`. Replay has six training frames and is never predicted: more replay footage is needed before the 0.9 camera-state floor can be expected; the clock gate keeps replay shots out of the event stream regardless.
+- Ruling: the probe trainer runs without the detector and court models (embedding only, feature weights zeroed in the saved probe) so the camera-state part can proceed before the Colab weights land; retrain with features once `models/detector` exists — cost if wrong: a few points of camera-state accuracy until then.
+- Ruling: training scripts run both by path and as modules (`python -m training.<script>`): run by path they could not import the `training` package — cost if wrong: none.
+- Still waiting on the Colab weights: the court keypoint template, `tests/integration/test_onnx_perceiver.py`, the detector benchmark, the perception caches and the golden `possession_start` / `shot_attempt` scores.

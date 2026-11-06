@@ -55,6 +55,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=Path("models/camera/probe.json"))
     ap.add_argument("--fps", type=float, default=2.0)
     ap.add_argument("--holdout", default=None, help="clip file name kept out of training")
+    ap.add_argument("--class-weight", choices=["none", "balanced"], default="none")
+    ap.add_argument(
+        "--embeddings-cache", type=Path, default=None,
+        help="npz of the sampled embeddings and labels; read when it exists, written otherwise",
+    )
     args = ap.parse_args(argv)
 
     from sklearn.linear_model import LogisticRegression
@@ -90,6 +95,14 @@ def main(argv: list[str] | None = None) -> int:
 
     xs: dict[str, list[np.ndarray]] = {"train": [], "holdout": []}
     ys: dict[str, list[str]] = {"train": [], "holdout": []}
+    cache = args.embeddings_cache
+    if cache is not None and cache.is_file():
+        data = np.load(cache, allow_pickle=False)
+        for split in ("train", "holdout"):
+            xs[split] = list(data[f"x_{split}"])
+            ys[split] = [str(v) for v in data[f"y_{split}"]]
+        print(f"embeddings from {cache}")
+        by_clip = {}
     for clip_name, segments in by_clip.items():
         split = "holdout" if clip_name == args.holdout else "train"
         for image, state in sample_frames(args.clips / clip_name, segments, args.fps):
@@ -110,7 +123,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{clip_name}: sampled into {split}")
     if not xs["train"]:
         raise SystemExit("no training frames: check --labels and --clips")
-    clf = LogisticRegression(max_iter=2000, C=1.0).fit(np.stack(xs["train"]), ys["train"])
+    if cache is not None and not cache.is_file():
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            cache,
+            x_train=np.stack(xs["train"]), y_train=np.array(ys["train"]),
+            x_holdout=np.stack(xs["holdout"]) if xs["holdout"] else np.zeros((0, 771), np.float32),
+            y_holdout=np.array(ys["holdout"]),
+        )
+    weight = None if args.class_weight == "none" else "balanced"
+    clf = LogisticRegression(max_iter=2000, C=1.0, class_weight=weight).fit(np.stack(xs["train"]), ys["train"])
     classes = list(clf.classes_)
     coef = np.zeros((len(CLASSES), clf.coef_.shape[1]))
     intercept = np.zeros(len(CLASSES))
