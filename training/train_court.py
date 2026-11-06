@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 """Fine-tune the RF-DETR keypoint preview model on the basketball court set (33 keypoints).
 
-Colab:  python training/train_court.py --dataset-dir data/datasets/court --epochs 40 \
+Colab:  python -m training.train_court --dataset-dir data/datasets/court --epochs 40 \
             --batch 8 --device cuda --out models/court
 """
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # run by path or as a module
+
 import argparse
 import json
 import shutil
 from datetime import date
-from pathlib import Path
 
 from training.manifest import write_manifest
 

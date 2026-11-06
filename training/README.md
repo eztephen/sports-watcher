@@ -37,10 +37,10 @@ download_roboflow("roboflow-jvuqo", "basketball-court-detection-2", 19, "coco", 
 4. Train and export:
 
 ```
-!python training/train_detector.py --dataset-dir data/datasets/players --dataset-version <version> \
+!python -m training.train_detector --dataset-dir data/datasets/players --dataset-version <version> \
     --model small --resolution 512 --epochs 30 --batch 8 --grad-accum 2 --device cuda --out models/detector
-!python training/train_court.py --dataset-dir data/datasets/court --epochs 40 --batch 8 --device cuda --out models/court
-!python training/export_siglip.py --out models/siglip/vision.onnx
+!python -m training.train_court --dataset-dir data/datasets/court --epochs 40 --batch 8 --device cuda --out models/court
+!python -m training.export_siglip --out models/siglip/vision.onnx
 ```
 
 5. Zip and download: `!zip -r models-$(date +%F).zip models -x "models/*/run/*"`, then put
@@ -54,7 +54,7 @@ A second detector size for the benchmark: rerun step 4 with `--model nano --reso
 
 ```
 ./.venv/bin/pip install -e ".[train]"
-./.venv/bin/python training/train_detector.py --dataset-dir data/datasets/players --model small \
+./.venv/bin/python -m training.train_detector --dataset-dir data/datasets/players --model small \
     --resolution 512 --epochs 30 --batch 2 --grad-accum 8 --device mps --out models/detector
 ```
 

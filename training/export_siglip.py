@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 """Export the SigLIP vision tower (google/siglip-base-patch16-224, Apache-2.0) to ONNX.
 
-    python training/export_siglip.py --out models/siglip/vision.onnx
+    python -m training.export_siglip --out models/siglip/vision.onnx
 """
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # run by path or as a module
+
 import argparse
 from datetime import date
-from pathlib import Path
 
 from training.manifest import write_manifest
 

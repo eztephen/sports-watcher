@@ -1,17 +1,21 @@
 #!/usr/bin/env python
 """Fine-tune RF-DETR on the basketball player set and export ONNX plus a manifest.
 
-Colab:  python training/train_detector.py --dataset-dir data/datasets/players --model small \
+Colab:  python -m training.train_detector --dataset-dir data/datasets/players --model small \
             --resolution 512 --epochs 30 --batch 8 --grad-accum 2 --device cuda --out models/detector
 Mac:    same with --device mps --batch 2 --grad-accum 8
 """
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # run by path or as a module
+
 import argparse
 import shutil
 from datetime import date
-from pathlib import Path
 
 from training.datasets import TARGET_CLASSES
 from training.manifest import write_manifest
