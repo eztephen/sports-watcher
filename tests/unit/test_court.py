@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import yaml
+
 from sports_watcher.perception.court import (
     CourtMapper,
     court_to_image,
@@ -8,7 +9,6 @@ from sports_watcher.perception.court import (
     load_template,
     order_template,
 )
-
 from tests.helpers.leagues import fixture_league
 
 L = fixture_league("pba")
