@@ -26,7 +26,7 @@ ATTRIBUTION = "Roboflow Universe basketball-player-detection-2 (roboflow-jvuqo),
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dataset-dir", type=Path, required=True)
+    ap.add_argument("--dataset-dir", type=Path, default=None, help="required unless --checkpoint is given")
     ap.add_argument("--dataset-version", default="unknown")
     ap.add_argument("--model", choices=["nano", "small", "medium"], default="small")
     ap.add_argument("--resolution", type=int, default=512, help="divisible by 32")
@@ -35,24 +35,33 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--grad-accum", type=int, default=2)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--workers", type=int, default=4, help="data loader workers")
+    ap.add_argument("--checkpoint", type=Path, default=None, help="export this checkpoint instead of training")
+    ap.add_argument("--note", default=None, help="free text recorded in the manifest")
     ap.add_argument("--out", type=Path, default=Path("models/detector"))
     args = ap.parse_args(argv)
     if args.resolution % 32:
         raise SystemExit("--resolution must be divisible by 32")
+    if args.checkpoint is None and args.dataset_dir is None:
+        raise SystemExit("--dataset-dir is required unless --checkpoint is given")
 
     from rfdetr import RFDETRMedium, RFDETRNano, RFDETRSmall  # training extra
 
     cls = {"nano": RFDETRNano, "small": RFDETRSmall, "medium": RFDETRMedium}[args.model]
-    model = cls(resolution=args.resolution)
-    model.train(
-        dataset_dir=str(args.dataset_dir),
-        epochs=args.epochs,
-        batch_size=args.batch,
-        grad_accum_steps=args.grad_accum,
-        lr=args.lr,
-        device=args.device,
-        output_dir=str(args.out / "run"),
-    )
+    if args.checkpoint is not None:
+        model = cls(resolution=args.resolution, pretrain_weights=str(args.checkpoint))
+    else:
+        model = cls(resolution=args.resolution)
+        model.train(
+            dataset_dir=str(args.dataset_dir),
+            epochs=args.epochs,
+            batch_size=args.batch,
+            grad_accum_steps=args.grad_accum,
+            lr=args.lr,
+            device=args.device,
+            num_workers=args.workers,
+            output_dir=str(args.out / "run"),
+        )
     args.out.mkdir(parents=True, exist_ok=True)
     model.export(
         output_dir=str(args.out),
@@ -60,7 +69,6 @@ def main(argv: list[str] | None = None) -> int:
         shape=(args.resolution, args.resolution),
         batch_size=1,
         opset_version=17,
-        simplify=False,
     )
     exported = args.out / "inference_model.onnx"
     final = args.out / "model.onnx"
@@ -79,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         attribution=ATTRIBUTION,
         output_boxes="dets",
         output_logits="labels",
+        note=args.note,
     )
     print(f"wrote {final} and {manifest}")
     return 0

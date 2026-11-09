@@ -43,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--grad-accum", type=int, default=1)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--workers", type=int, default=4, help="data loader workers")
     ap.add_argument("--out", type=Path, default=Path("models/court"))
     args = ap.parse_args(argv)
     if args.resolution % 32:
@@ -63,6 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         grad_accum_steps=args.grad_accum,
         lr=args.lr,
         device=args.device,
+        num_workers=args.workers,
         output_dir=str(args.out / "run"),
     )
     args.out.mkdir(parents=True, exist_ok=True)
@@ -72,7 +74,6 @@ def main(argv: list[str] | None = None) -> int:
         shape=(args.resolution, args.resolution),
         batch_size=1,
         opset_version=17,
-        simplify=False,
     )
     final = args.out / "model.onnx"
     shutil.move(str(args.out / "inference_model.onnx"), str(final))
