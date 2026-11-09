@@ -15,15 +15,29 @@ XY = tuple[float, float]
 
 
 def load_template(path: Path, league: LeagueConfig) -> tuple[list[str], np.ndarray]:
-    """Keypoint names and their court positions in metres from a template yaml whose
-    entries give ``x_frac`` and ``y_frac`` of the court length and width."""
+    """Keypoint names and their court positions in metres from a template yaml.
+
+    An entry names a court ``feature`` resolved from the league's geometry (the yaml's
+    ``sport`` picks the resolver; ``basketball`` is the only one), or gives ``x_frac``
+    and ``y_frac`` of the court length and width for an arbitrary point."""
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    names = [str(k["name"]) for k in data["keypoints"]]
-    xy = np.array(
-        [(float(k["x_frac"]) * league.court_length_m, float(k["y_frac"]) * league.court_width_m) for k in data["keypoints"]],
-        dtype=float,
-    )
-    return names, xy
+    resolver = None
+    if any("feature" in k for k in data["keypoints"]):
+        sport = data.get("sport", "basketball")
+        if sport != "basketball":
+            raise ValueError(f"no court feature resolver for sport {sport!r}")
+        from sports_watcher.sports.basketball.geometry import resolve_feature
+
+        resolver = resolve_feature
+    names, points = [], []
+    for k in data["keypoints"]:
+        names.append(str(k["name"]))
+        if "feature" in k:
+            assert resolver is not None
+            points.append(resolver(k, league))
+        else:
+            points.append((float(k["x_frac"]) * league.court_length_m, float(k["y_frac"]) * league.court_width_m))
+    return names, np.array(points, dtype=float)
 
 
 def order_template(names: list[str], xy: np.ndarray, manifest_keypoints: list[str]) -> np.ndarray:

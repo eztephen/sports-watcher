@@ -73,3 +73,70 @@ def in_lane_edges(court_xy: XY, league: LeagueConfig, side: Side, margin_m: floa
         return False
     half = league.key_width_m / 2.0
     return abs(abs(y - league.court_width_m / 2.0) - half) <= margin_m
+
+
+# -- court keypoint features ------------------------------------------------------------
+
+FEATURES = (
+    "corner",
+    "three_point_baseline_end",
+    "key_baseline_corner",
+    "key_ft_corner",
+    "ft_line_mid",
+    "hoop",
+    "three_point_junction",
+    "three_point_apex",
+    "sideline_mark",
+    "centre_sideline",
+    "centre",
+)
+
+
+def resolve_feature(entry: dict, league: LeagueConfig) -> XY:
+    """Court position in metres of a named court feature.
+
+    ``entry`` has ``feature`` (one of ``FEATURES``), ``side`` (``left`` or ``right``: the
+    basket half, needed by every feature except the centre ones), ``sideline`` (``near``
+    or ``far``, for features that come in a pair across the width) and
+    ``from_baseline_m`` for ``sideline_mark``.
+    """
+    feature = entry["feature"]
+    if feature not in FEATURES:
+        raise ValueError(f"unknown court feature {feature!r}")
+    length, width = league.court_length_m, league.court_width_m
+    mid = width / 2.0
+    side = entry.get("side")
+    far = entry.get("sideline") == "far"
+    lateral = width if far else 0.0
+    if feature == "centre":
+        return (length / 2.0, mid)
+    if feature == "centre_sideline":
+        return (length / 2.0, lateral)
+    if side not in ("left", "right"):
+        raise ValueError(f"feature {feature!r} needs side left or right")
+    basket_x = basket_xy(league, side)[0]
+    sign = 1.0 if side == "left" else -1.0  # toward the court centre from that baseline
+    baseline_x = 0.0 if side == "left" else length
+    ft_x = free_throw_xy(league, side)[0]
+    half_key = league.key_width_m / 2.0
+    r, c = league.three_point_radius_m, league.three_point_corner_m
+    offset = mid + (c if far else -c)
+    if feature == "corner":
+        return (baseline_x, lateral)
+    if feature == "three_point_baseline_end":
+        return (baseline_x, offset)
+    if feature == "key_baseline_corner":
+        return (baseline_x, mid + (half_key if far else -half_key))
+    if feature == "key_ft_corner":
+        return (ft_x, mid + (half_key if far else -half_key))
+    if feature == "ft_line_mid":
+        return (ft_x, mid)
+    if feature == "hoop":
+        return (basket_x, mid)
+    if feature == "three_point_junction":
+        return (basket_x + sign * math.sqrt(max(r * r - c * c, 0.0)), offset)
+    if feature == "three_point_apex":
+        return (basket_x + sign * r, mid)
+    if feature == "sideline_mark":
+        return (baseline_x + sign * float(entry["from_baseline_m"]), lateral)
+    raise AssertionError(feature)

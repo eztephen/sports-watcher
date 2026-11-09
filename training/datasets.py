@@ -82,7 +82,7 @@ def download_roboflow(workspace: str, project: str, version: int, fmt: str, dest
     if not key:
         raise SystemExit("ROBOFLOW_API_KEY is not set (put it in .env or the Colab environment)")
     dest = Path(dest)
-    dest.mkdir(parents=True, exist_ok=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)  # the client skips an existing location
     rf = Roboflow(api_key=key)
-    rf.workspace(workspace).project(project).version(version).download(fmt, location=str(dest))
+    rf.workspace(workspace).project(project).version(version).download(fmt, location=str(dest), overwrite=True)
     return dest

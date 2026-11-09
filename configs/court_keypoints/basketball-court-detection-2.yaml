@@ -1,0 +1,44 @@
+# Court keypoints of the Roboflow dataset roboflow-jvuqo/basketball-court-detection-2 (v19,
+# CC BY 4.0), read off its annotated NBA frames: the names are numbers, left to right along
+# the court. Each entry names a court feature that sports_watcher.sports.basketball.geometry
+# resolves from the league's dimensions, so the same template serves FIBA and NBA courts.
+# Court frame: x along the length from the left baseline, y from the near sideline (the
+# broadcast camera's side) to the far one. "side" is the basket half; "sideline" says
+# which of a pair across the width. The sideline marks are the NBA hash marks 28 ft
+# (8.53 m) from each baseline; FIBA courts have no such line, so the model's prediction
+# for them rests on context and RANSAC may drop them.
+sport: basketball
+keypoints:
+  - {name: "01", feature: corner, side: left, sideline: far}
+  - {name: "02", feature: three_point_baseline_end, side: left, sideline: far}
+  - {name: "04", feature: key_baseline_corner, side: left, sideline: far}
+  - {name: "05", feature: key_baseline_corner, side: left, sideline: near}
+  - {name: "07", feature: three_point_baseline_end, side: left, sideline: near}
+  - {name: "08", feature: corner, side: left, sideline: near}
+  - {name: "09", feature: hoop, side: left}
+  - {name: "10", feature: three_point_junction, side: left, sideline: far}
+  - {name: "11", feature: three_point_junction, side: left, sideline: near}
+  - {name: "12", feature: key_ft_corner, side: left, sideline: far}
+  - {name: "13", feature: ft_line_mid, side: left}
+  - {name: "14", feature: key_ft_corner, side: left, sideline: near}
+  - {name: "15", feature: sideline_mark, side: left, sideline: far, from_baseline_m: 8.53}
+  - {name: "16", feature: three_point_apex, side: left}
+  - {name: "17", feature: sideline_mark, side: left, sideline: near, from_baseline_m: 8.53}
+  - {name: "19", feature: centre_sideline, sideline: far}
+  - {name: "21", feature: centre}
+  - {name: "23", feature: centre_sideline, sideline: near}
+  - {name: "25", feature: sideline_mark, side: right, sideline: far, from_baseline_m: 8.53}
+  - {name: "26", feature: three_point_apex, side: right}
+  - {name: "27", feature: sideline_mark, side: right, sideline: near, from_baseline_m: 8.53}
+  - {name: "28", feature: key_ft_corner, side: right, sideline: far}
+  - {name: "29", feature: ft_line_mid, side: right}
+  - {name: "30", feature: key_ft_corner, side: right, sideline: near}
+  - {name: "31", feature: three_point_junction, side: right, sideline: far}
+  - {name: "32", feature: three_point_junction, side: right, sideline: near}
+  - {name: "33", feature: hoop, side: right}
+  - {name: "34", feature: corner, side: right, sideline: far}
+  - {name: "35", feature: three_point_baseline_end, side: right, sideline: far}
+  - {name: "37", feature: key_baseline_corner, side: right, sideline: far}
+  - {name: "38", feature: key_baseline_corner, side: right, sideline: near}
+  - {name: "40", feature: three_point_baseline_end, side: right, sideline: near}
+  - {name: "41", feature: corner, side: right, sideline: near}
