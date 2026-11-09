@@ -92,3 +92,26 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
 - One epoch of RF-DETR Nano at 384 on the M1 Pro (MPS, batch 4, grad-accum 4, default loader workers) took 56 minutes including the checkpoint download and validation; after that single epoch the EMA weights scored mAP50 0.58 and mAP50-95 0.33 on the player validation split (precision 0.60, recall 0.56). Its ONNX export (input `input` 1x3x384x384, outputs `dets` 1x300x4 and `labels` 1x300x5) ran through the perceiver on live PBA frames: five player tracks, no rim, the camera probe at 0.61, and a false ball of radius 105 px, which led to the ball-size gate (a ball over 4 % of the frame height is rejected). The trial model stays under `tmp/detector_nano_trial/` and is not in `models/`.
 - A 20-epoch run with eight loader workers made the machine unusable (load 18 on 10 cores, 15 of 16 GB in use, 5.5 GB compressed) and was stopped before its first epoch finished. Ruling: training moves to Colab (`training/colab_m1_weights.ipynb`, upload `tmp/training-colab.zip`); the Mac keeps inference only — cost if wrong: a Colab session per model instead of a night of local training.
 - `scripts/download_models.py --zip` installs the Colab `models.zip` (the `models/` prefix stripped, `run/` folders skipped). The unit-test settings now point at an empty models directory so real weights never leak into the unit suite.
+
+## Colab weights (2026-11-09, branch feat/m1-colab-weights)
+
+- Small detector, 512, 30 epochs, batch 4 x accum 4 on a T4, 1 min 40 s per epoch: val mAP50:95
+  0.632, mAP50 0.93, F1 0.93 (EMA, epoch 28 best). Batch 8 was never tried for the detector;
+  the court keypoint model (40.7 M params, trained at 696 px) ran out of memory at batch 8 and
+  at batch 4 (14 GB in the keypoint cross-attention) and runs at batch 2 x accum 8 with
+  `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, 8.5 min per epoch, so it trains for 20
+  epochs instead of 40 (OKS mAP50:95 0.83 after one epoch).
+- Class-map bug: RF-DETR gives COCO category id k the logit column k - 1 and leaves the last
+  column unused. The manifests were keyed by dataset id (1..4), so on PBA frames the detector
+  reported ten "balls" (the players), one "player" (the referee), one "referee" (the rim) and no
+  ball at all (column 0 dropped as background). `training.manifest.logit_classes` writes the map
+  by column; the decode test and the installed manifest follow it. With the fix the integration
+  suite passes (15 main-camera frames at 90 s: 6+ tracks, rim, detected ball).
+- Providers on the M-series Mac: the RF-DETR graphs split into about a hundred CoreML
+  partitions and run twice as slow there (Small 512: 300 ms CPU vs 650 ms CoreML per frame);
+  SigLIP is twice as fast on CoreML (67 vs 123 ms). RF-DETR sessions default to the CPU
+  provider, SigLIP keeps CoreML. Bench on pba_ros_cvg_2500_2700 from 70 s, 100 frames, every
+  2nd: 442 ms per perception frame (detector 316, probe 106, team 11); that segment has no
+  visible ball or rim, so the ball count there says nothing.
+- Full-frame ball confidences on main-camera frames are 0.25 to 0.5 at 512 px; the 384 px
+  ball crop is what carries the ball once acquired.
