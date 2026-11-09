@@ -65,3 +65,16 @@ def test_ball_finder_falls_back_to_full_frame():
     f = BallFinder(d)
     full = [Detection((1.0, 1.0, 9.0, 9.0), "ball", 0.4), Detection((0.0, 0.0, 50.0, 100.0), "player", 0.9)]
     assert f.find(np.zeros((1080, 1920, 3), np.uint8), None, full).confidence == 0.4 and d.calls == []
+
+
+def test_ball_finder_rejects_oversized_balls():
+    class HugeBallDetector:
+        def detect(self, image):
+            return [Detection((100.0, 100.0, 310.0, 310.0), "ball", 0.95)]  # 210 px: a body, not a ball
+
+    f = BallFinder(HugeBallDetector())
+    img = np.zeros((1080, 1920, 3), np.uint8)
+    assert f.find(img, (200.0, 200.0), []) is None
+    big = Detection((0.0, 0.0, 120.0, 120.0), "ball", 0.9)
+    small = Detection((500.0, 500.0, 522.0, 522.0), "ball", 0.4)
+    assert f.find(img, None, [big, small]) is small
