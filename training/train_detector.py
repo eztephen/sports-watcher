@@ -69,10 +69,14 @@ def main(argv: list[str] | None = None) -> int:
         shape=(args.resolution, args.resolution),
         batch_size=1,
         opset_version=17,
+        output_name="model",
     )
-    exported = args.out / "inference_model.onnx"
     final = args.out / "model.onnx"
-    shutil.move(str(exported), str(final))
+    if not final.is_file():  # older rfdetr releases ignore output_name and pick their own
+        candidates = sorted(args.out.glob("*.onnx"), key=lambda p: p.stat().st_mtime)
+        if not candidates:
+            raise SystemExit(f"no .onnx written under {args.out}")
+        shutil.move(str(candidates[-1]), str(final))
     manifest = write_manifest(
         final,
         name="detector",
