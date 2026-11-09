@@ -15,4 +15,7 @@ def fixture_league(name: str = "pba") -> LeagueConfig:
 
 
 def fixture_settings() -> Settings:
-    return Settings(_env_file=None, configs_dir=TEST_CONFIGS_DIR)
+    """Settings for pipeline tests: the fixture configs, and model and cache directories
+    that never exist, so whatever weights sit under models/ cannot leak into the tests."""
+    empty = TEST_CONFIGS_DIR.parent / "no_models"
+    return Settings(_env_file=None, configs_dir=TEST_CONFIGS_DIR, models_dir=empty, cache_dir=empty / "cache")
