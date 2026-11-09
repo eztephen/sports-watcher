@@ -17,7 +17,7 @@ import json
 import shutil
 from datetime import date
 
-from training.manifest import write_manifest
+from training.manifest import logit_classes, write_manifest
 
 DATASET = "roboflow-jvuqo/basketball-court-detection-2"
 ATTRIBUTION = "Roboflow Universe basketball-court-detection-2 (roboflow-jvuqo), CC BY 4.0"
@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         family="rfdetr-keypoint",
         size="keypoint-preview",
         resolution=args.resolution,
-        classes={1: "court"},
+        classes=logit_classes(["court"]),
         keypoints=names,
         dataset=DATASET,
         dataset_version=str(args.dataset_version),

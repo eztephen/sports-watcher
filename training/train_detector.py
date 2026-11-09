@@ -18,7 +18,7 @@ import shutil
 from datetime import date
 
 from training.datasets import TARGET_CLASSES
-from training.manifest import write_manifest
+from training.manifest import logit_classes, write_manifest
 
 DATASET = "roboflow-jvuqo/basketball-player-detection-2"
 ATTRIBUTION = "Roboflow Universe basketball-player-detection-2 (roboflow-jvuqo), CC BY 4.0"
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         family="rfdetr",
         size=args.model,
         resolution=args.resolution,
-        classes={i + 1: n for i, n in enumerate(TARGET_CLASSES)},
+        classes=logit_classes(TARGET_CLASSES),
         dataset=DATASET,
         dataset_version=str(args.dataset_version),
         trained_on=date.today().isoformat(),

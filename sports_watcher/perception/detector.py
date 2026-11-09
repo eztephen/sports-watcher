@@ -15,11 +15,15 @@ IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 DEFAULT_THRESHOLD = 0.3
 
 
-def default_providers() -> list[str]:
+def default_providers(prefer_cpu: bool = False) -> list[str]:
+    """CoreML then CPU, or CPU first for the RF-DETR graphs: those split into about a hundred
+    CoreML partitions and run twice as slow there as on the CPU (Small 512: 300 ms against
+    650 ms per frame on an M-series Mac), while SigLIP is twice as fast on CoreML."""
     import onnxruntime as ort
 
     available = ort.get_available_providers()
-    return [p for p in ("CoreMLExecutionProvider", "CPUExecutionProvider") if p in available] or available
+    order = ("CPUExecutionProvider", "CoreMLExecutionProvider") if prefer_cpu else ("CoreMLExecutionProvider", "CPUExecutionProvider")
+    return [p for p in order if p in available] or available
 
 
 def preprocess(image_bgr: np.ndarray, resolution: int) -> np.ndarray:
@@ -67,10 +71,12 @@ def decode_detections(
 
 
 class _Session:
+    """An RF-DETR ONNX session; without explicit providers it runs on the CPU (see default_providers)."""
+
     def __init__(self, model_path: Path, providers: list[str] | None) -> None:
         import onnxruntime as ort
 
-        self.session = ort.InferenceSession(str(model_path), providers=providers or default_providers())
+        self.session = ort.InferenceSession(str(model_path), providers=providers or default_providers(prefer_cpu=True))
         self.input_name = self.session.get_inputs()[0].name
         self.output_names = [o.name for o in self.session.get_outputs()]
 

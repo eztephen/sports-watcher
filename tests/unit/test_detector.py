@@ -4,15 +4,15 @@ from sports_watcher.perception.ball import BallFinder, crop_window
 from sports_watcher.perception.detector import decode_detections, preprocess
 from sports_watcher.perception.tracker import Detection
 
-CLASSES = {1: "ball", 2: "player", 3: "referee", 4: "rim"}
+CLASSES = {0: "ball", 1: "player", 2: "referee", 3: "rim"}  # logit columns; column 4 is unused
 
 
 def test_decode_scales_boxes_and_maps_classes():
     boxes = np.array([[0.5, 0.5, 0.2, 0.4], [0.1, 0.1, 0.05, 0.05], [0.9, 0.9, 0.1, 0.1]])
     logits = np.full((3, 5), -9.0)
-    logits[0, 2] = 3.0
-    logits[1, 1] = 0.5
-    logits[2, 0] = 4.0
+    logits[0, 1] = 3.0
+    logits[1, 0] = 0.5
+    logits[2, 4] = 4.0  # the unused last column is dropped however confident
     dets = decode_detections(boxes, logits, (1080, 1920), CLASSES, threshold=0.3)
     assert len(dets) == 2
     player = next(d for d in dets if d.cls == "player")
@@ -78,3 +78,12 @@ def test_ball_finder_rejects_oversized_balls():
     big = Detection((0.0, 0.0, 120.0, 120.0), "ball", 0.9)
     small = Detection((500.0, 500.0, 522.0, 522.0), "ball", 0.4)
     assert f.find(img, None, [big, small]) is small
+
+
+def test_rfdetr_sessions_prefer_the_cpu_provider():
+    # RF-DETR graphs split into ~100 CoreML partitions and run about twice as slow there as on
+    # the CPU (Small 512: 300 ms vs 650 ms per frame on an M-series Mac); SigLIP is the opposite.
+    from sports_watcher.perception.detector import default_providers
+
+    assert default_providers(prefer_cpu=True)[0] == "CPUExecutionProvider"
+    assert "CPUExecutionProvider" in default_providers()

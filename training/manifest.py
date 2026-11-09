@@ -16,6 +16,13 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
+def logit_classes(names: list[str]) -> dict[int, str]:
+    """The manifest's class map, keyed by logit column. RF-DETR gives the COCO category id k
+    (ids 1..n in our remapped datasets) the logit column k - 1 and leaves the last column
+    unused, so column 0 is the first class, not background."""
+    return {i: name for i, name in enumerate(names)}
+
+
 def write_manifest(model_path: Path, **fields: Any) -> Path:
     """Write ``manifest.json`` beside ``model_path`` with its sha256 filled in."""
     model_path = Path(model_path)

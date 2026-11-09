@@ -25,3 +25,12 @@ def test_remap_merges_player_actions_and_drops_numbers(tmp_path):
     assert [c["id"] for c in out["categories"]] == [1, 2, 3, 4]
     assert counts == {"ball": 1, "player": 2, "referee": 0, "rim": 0}
     assert sorted(a["category_id"] for a in out["annotations"]) == [1, 2, 2]
+
+
+def test_logit_classes_are_zero_based_columns():
+    # RF-DETR gives COCO category id k the logit column k - 1 (the last column is unused),
+    # so the manifest's class map must be keyed by column, not by dataset id.
+    from training.manifest import logit_classes
+
+    assert logit_classes(["ball", "player", "referee", "rim"]) == {0: "ball", 1: "player", 2: "referee", 3: "rim"}
+    assert logit_classes(["court"]) == {0: "court"}
