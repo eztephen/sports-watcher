@@ -39,7 +39,7 @@ download_roboflow("roboflow-jvuqo", "basketball-court-detection-2", 19, "coco", 
 ```
 !python -m training.train_detector --dataset-dir data/datasets/players --dataset-version <version> \
     --model small --resolution 512 --epochs 30 --batch 4 --grad-accum 4 --workers 2 --device cuda --out models/detector
-!python -m training.train_court --dataset-dir data/datasets/court --epochs 20 --batch 2 --grad-accum 8 --workers 2 --device cuda --out models/court
+!python -m training.train_court --dataset-dir data/datasets/court --epochs 6 --batch 2 --grad-accum 8 --workers 2 --device cuda --out models/court
 !python -m training.export_siglip --out models/siglip/vision.onnx
 ```
 
