@@ -11,7 +11,7 @@ from dataclasses import replace
 import numpy as np
 
 from sports_watcher.config import LeagueConfig
-from sports_watcher.perception.types import BallObs, Box, Track, box_center, box_height
+from sports_watcher.perception.types import BallObs, Box, Team, Track, box_center, box_height
 from sports_watcher.sports.base import Observation
 from sports_watcher.sports.basketball.geometry import (
     free_throw_xy,
@@ -97,19 +97,24 @@ def _inside(xy: tuple[float, float], box: Box) -> bool:
     return box[0] <= xy[0] <= box[2] and box[1] <= xy[1] <= box[3]
 
 
-def holder_candidate(tracks: list[Track], ball: BallObs | None) -> int | None:
-    """The player whose grown box contains the ball centre, nearest box centre first."""
+def holder_candidate(tracks: list[Track], ball: BallObs | None, prefer_team: str | None = None) -> int | None:
+    """The player whose grown box contains the ball centre, nearest box centre first.
+
+    With ``prefer_team`` (the team in possession) a player of that team within reach wins
+    over a nearer opponent: boxes of a ball handler and his defender overlap, and the ball
+    changes sides only once it is out of reach of every player of the team that had it."""
     if ball is None:
         return None
-    best: tuple[float, int] | None = None
+    best: tuple[bool, float, int] | None = None
     for tr in tracks:
         if tr.cls != "player" or not _inside(ball.xy, grown(tr.box, BOX_GROW)):
             continue
         cx, cy = box_center(tr.box)
         d = (cx - ball.xy[0]) ** 2 + (cy - ball.xy[1]) ** 2
-        if best is None or d < best[0]:
-            best = (d, tr.track_id)
-    return best[1] if best else None
+        key = (prefer_team is None or tr.team != prefer_team, d, tr.track_id)
+        if best is None or key < best:
+            best = key
+    return best[2] if best else None
 
 
 def rim_region(rim: Box) -> Box:
@@ -217,7 +222,8 @@ def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
         if held is not None and _inside(vf.ball.xy, grown(held.box, BOX_GROW)):
             new.holder_candidate = None
             return  # still in the holder's reach: a nearer defender does not take it
-    cand = holder_candidate(vf.tracks, vf.ball)
+    prefer = new.possession if new.possession in ("home", "away") else None
+    cand = holder_candidate(vf.tracks, vf.ball, prefer)
     if cand is None:
         new.holder, new.holder_candidate = None, None
         return
@@ -241,9 +247,32 @@ def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
         new.holder_candidate = (cand, since)
 
 
+def _scored_on(state: GameState) -> tuple[Team, float] | None:
+    """The team that takes the ball out after the last shot went through the rim, and when
+    it went through; None once that possession has started or when no basket was seen."""
+    shot, ri = state.last_shot, state.rim_interaction
+    if shot is None or ri is None or ri.crossed_pts is None or ri.crossed_pts <= shot.t_pts:
+        return None
+    if shot.team not in ("home", "away"):
+        return None
+    if state.possession_since_pts is not None and state.possession_since_pts > ri.crossed_pts:
+        return None
+    return ("away" if shot.team == "home" else "home"), ri.crossed_pts
+
+
 def _apply_possession(new: GameState) -> None:
     h = new.holder
-    if h is not None and h.team in ("home", "away") and h.team != new.possession:
+    if h is None:
+        return
+    scored_on = _scored_on(new)
+    if scored_on is not None and h.since_pts > scored_on[1]:
+        # After a basket the ball belongs to the team scored on, whatever label the player
+        # who picks it up carries (team labels are least reliable under the basket).
+        new.possession, new.possession_since_pts = scored_on[0], h.since_pts
+        return
+    if h.since_pts == new.possession_since_pts:
+        return  # the hold that started this possession does not flip it back
+    if h.team in ("home", "away") and h.team != new.possession:
         new.possession = h.team
         new.possession_since_pts = h.since_pts
 

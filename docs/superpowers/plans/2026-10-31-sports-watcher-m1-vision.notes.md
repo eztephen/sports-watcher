@@ -223,3 +223,40 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   backfilled as shots (lane formation needs the homography), the 53.32 s layup credited to
   the wrong team and its backfilled twin at 59.75 s, and the backfill at 80.25 s for the
   72.75 s shot vision never drafts.
+
+## Possession on real perception: what the measurements said (2026-11-11, evening)
+
+- The two perception steps planned next were measured before building and both dropped:
+  - "Reject ball detections far from every player": every run of detections more than one
+    player height from the nearest player on `pba_ros_cvg_vision` (8 runs) is a shot in
+    flight. The filter would remove real shots and no false balls.
+  - Team vote and torso window: holder-team accuracy against the truth possessions is 0.80
+    with the cached labels and 0.69 to 0.81 for every variant tried (per-frame labels,
+    votes over 0.5, 1.5, 3 s or the track's life, upper or middle torso window, occluded
+    frames dropped, lightness weighted down). Lightness carries the signal; under motion
+    blur the Converge blue reads L 145, a 138, b 108, nearer the white centroid
+    (185, 132, 118) than the blue one (76, 148, 91) in every weighting. Colour alone will
+    not label a track born during a fast break (152 to 155 s).
+- Of the 226 detected-ball frames with a wrong-team holder, 99 have a player of the team in
+  possession also within reach of the ball (the defender's box is nearer), and 127 have only
+  wrong-team players in reach (63 of them the 152 to 155 s fast break).
+- Ruling: among the players within reach of the ball, one of the team in possession wins
+  over a nearer opponent; the ball changes sides once it is out of reach of every player of
+  the team that had it — cost if wrong: a steal in close contact is dated when the stealer
+  separates.
+- Ruling: after a shot that crossed the rim, the next holder starts the possession of the
+  team scored on, whatever label he carries, and that hold does not flip it back — cost if
+  wrong: a steal of the inbound pass before anyone on the inbounding team holds the ball is
+  credited to the inbounding team first.
+- Scores on `pba_ros_cvg_vision` after both (true / false / missed): possession_start
+  4 / 3 / 2 (was 2 / 8 / 4), shot_attempt 2 / 5 / 3 (was 2 / 6 / 3), shot_made 2 / 2 / 2,
+  turnover 0 / 2 / 0. The 53.6 s layup is now credited to Rain or Shine but dated 52.45 s,
+  1.15 s early: the ball is hidden during the drive and the release is dated from the last
+  hold before it disappeared.
+- What is left for possession_start: 76.67 s against 75.0 (the 72.75 s shot is never seen,
+  so the made-basket rule has nothing to act on, and the ball is only predicted from 74.2 to
+  76.0 s); a home start at 154.83 s from the blurred fast break and the away start at
+  156.03 s that corrects it; the 150.0 s Converge start is not drafted.
+- Next for possession: carry a team label across a track that dies and is reborn in place
+  (976 dies at 152.50 s, 1006 is born at 152.57 s 23 px away), and announce a possession
+  that changed while the clock was stopped when the clock restarts.

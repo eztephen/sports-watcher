@@ -134,3 +134,49 @@ def test_predicted_ball_does_not_hand_the_ball_to_a_defender():
     states = _states(observations(b.frames))
     assert states[-1].holder is not None and states[-1].holder.track_id == 2
 
+
+
+def test_ball_within_reach_of_both_teams_stays_with_the_team_in_possession():
+    # A pass arrives between the receiver and his defender, nearer the defender's box centre.
+    players = {1: ("home", (10.0, 7.0)), 2: ("away", (10.5, 7.0)), 3: ("home", (6.0, 7.0))}
+    contested = ((10.35, 7.0), 1.0)
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, players, holder_id=3)
+    b.pass_(3, 1, players, flight_s=0.3)
+    for _ in range(15):
+        b.frame(players, contested)
+    states = _states(observations(b.frames))
+    assert states[-1].holder is not None and states[-1].holder.track_id == 1
+    assert states[-1].possession == "home"
+    # The defender walks off with it: out of every home player's reach, it is his.
+    stolen = {**players, 2: ("away", (13.0, 7.0))}
+    b.hold(0.5, stolen, holder_id=2)
+    states = _states(observations(b.frames))
+    assert states[-1].holder is not None and states[-1].holder.track_id == 2
+    assert states[-1].possession == "away"
+
+
+def _after_shot(outcome: str):
+    """Home shoots at the right basket; a player carrying a home label picks the ball up
+    under that basket (the inbounder, mislabelled) and holds it."""
+    shooter, picker = (22.0, 7.5), (26.5, 7.5)
+    players = {1: ("home", shooter), 2: ("away", (20.0, 9.0)), 3: ("home", picker)}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, players, holder_id=1)
+    b.shot(1, players, "right", outcome=outcome)
+    picked_up_at = b.t
+    b.hold(0.5, players, holder_id=3)
+    return _states(observations(b.frames)), picked_up_at
+
+
+def test_after_a_made_basket_the_next_holder_starts_the_other_teams_possession():
+    states, picked_up_at = _after_shot("make")
+    assert states[-1].holder is not None and states[-1].holder.track_id == 3
+    assert states[-1].possession == "away"
+    assert abs(states[-1].possession_since_pts - picked_up_at) < 0.2
+
+
+def test_after_a_miss_the_holders_own_label_decides_possession():
+    states, _ = _after_shot("miss")
+    assert states[-1].holder is not None and states[-1].holder.track_id == 3
+    assert states[-1].possession == "home"
