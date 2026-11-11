@@ -50,17 +50,33 @@ class PossessionStartRule:
 
     def __init__(self) -> None:
         self._drafted_since: float | None = None
+        self._drafted_restart: float | None = None
+        self._holds: list[float] = []  # recent hold starts of the team in possession
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
-        if new.possession not in ("home", "away") or new.holder is None or not new.clock_running:
+        h = new.holder
+        if h is not None and h.team == new.possession and h.since_pts not in self._holds:
+            self._holds = [s for s in self._holds if obs.t_pts - s <= 4 * RESTART_GRACE_S] + [h.since_pts]
+        if new.possession not in ("home", "away") or h is None or not new.clock_running:
             return []
         since = new.possession_since_pts
-        if since is None or since == self._drafted_since:
+        if since is None:
             return []
-        self._drafted_since = since
         opened = new.clock_running_since_pts
-        if opened is not None and since < opened - RESTART_GRACE_S:
-            return []  # held through a dead ball or a replay: not a live possession start
+        stale = opened is not None and since < opened - RESTART_GRACE_S
+        if stale:
+            # The team had the ball before the clock restarted. A hold carried through the
+            # stoppage is not a start; a new hold around the restart of a clock that stood
+            # still (an inbound, the rebound of a free throw) is.
+            fresh = [s for s in self._holds if opened - RESTART_GRACE_S <= s <= opened + RESTART_GRACE_S]
+            if not (new.clock_resumed_from_stop and fresh) or self._drafted_restart == opened:
+                return []
+            self._drafted_restart = opened
+            since = min(fresh)  # the first hold around the restart
+        elif since == self._drafted_since:
+            return []
+        else:
+            self._drafted_since = since
         player, court_xy, det = _player(new.tracks, new.holder.track_id)
         return [
             EventDraft(

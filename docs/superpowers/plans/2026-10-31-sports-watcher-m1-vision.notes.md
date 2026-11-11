@@ -260,3 +260,27 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
 - Next for possession: carry a team label across a track that dies and is reborn in place
   (976 dies at 152.50 s, 1006 is born at 152.57 s 23 px away), and announce a possession
   that changed while the clock was stopped when the clock restarts.
+- Carrying a team label across a track that dies and is reborn in place was simulated on
+  the cache before building (rebirth within 0.3 to 1 s at IoU 0.2 or 0.4, 170 to 223
+  inheritances): holder-team accuracy 0.749 to 0.760 against 0.762 without it. In a crowd
+  the nearest dead track is often another player. Dropped; no cache rebuild.
+- Ruling: a possession the team already had before the clock restarted is announced at the
+  restart when the clock stood still (the first tick is one step down from the value at the
+  previous change) and a hold of that team began within 2 s of the restart; it is dated
+  from the first such hold. A hold carried through the stoppage, or a restart after the
+  clock ran on unseen, drafts nothing — cost if wrong: a replay that hides a stopped clock
+  for a whole dead ball loses that start.
+- The first version compared the tick with the last clock read and drafted a false start at
+  68.93 s: OCR read the clock as 20.0 at 61.0 s, the bug was unread from 61 to 68 s, and the
+  tick from 313 to 312 looked like a restart. The step is now measured from the clock value
+  at the previous change.
+- Scores on `pba_ros_cvg_vision` (true / false / missed): possession_start 4 / 4 / 2. The
+  Converge start after the free throws is now drafted, at 151.53 s against 150.0 in the
+  truth (1.53 s, outside the 1 s tolerance, so it counts as one false and one missed). The
+  cache has the dribbler holding from 150.17 s; why the rule's first hold is 151.53 s is
+  not traced yet (camera-state hysteresis after the close-up is the suspect), and 150 to
+  160 s of the truth is still unchecked against the video.
+- Possession errors left: 76.67 s against 75.0; 151.53 s against 150.0; the home start at
+  154.83 s from the blurred fast break and the away start at 156.03 s that corrects it.
+  Colour cannot fix the last pair; it needs a learned appearance model or a possession
+  rule that distrusts a flip with no visible transfer.

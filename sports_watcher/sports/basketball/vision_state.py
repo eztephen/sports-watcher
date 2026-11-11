@@ -33,6 +33,7 @@ HOLD_S = 0.165  # five perception-frame intervals at 30 Hz (the spec's 0.17 s)
 BOX_GROW = 0.25
 CLOCK_RUNNING_S = 2.0
 ASSUMED_MAX_S = 5.0
+RESUME_MAX_STEP_S = 1.5
 MIN_SCOREBOARD_CONFIDENCE = 0.6
 RIM_REGION_WIDTHS = 2.0
 SHOT_GATE_WIDTHS = 1.5
@@ -58,6 +59,9 @@ def update_clock_gate(prev: GameState, new: GameState, obs: Observation) -> None
         new.last_scoreboard_pts = t
         if prev.clock_s is not None and sb.clock_s < prev.clock_s - 1e-6:
             new.last_clock_change_pts = t
+            before = prev.last_clock_change_value if prev.last_clock_change_value is not None else prev.clock_s
+            new.last_clock_step_s = before - sb.clock_s
+            new.last_clock_change_value = sb.clock_s
     since_read = t - new.last_scoreboard_pts if new.last_scoreboard_pts is not None else float("inf")
     since_change = (
         t - new.last_clock_change_pts if new.last_clock_change_pts is not None else float("inf")
@@ -77,6 +81,11 @@ def update_clock_gate(prev: GameState, new: GameState, obs: Observation) -> None
         new.clock_running = False
     if new.clock_running and not prev.clock_running:
         new.clock_running_since_pts = t
+        # One tick down from the value at the previous change: the clock stood still while
+        # the gate was closed (a dead ball). Any other step means it ran on unseen, behind a
+        # replay or a graphic, or a read in between was wrong.
+        step = new.last_clock_step_s
+        new.clock_resumed_from_stop = step is not None and 0.0 < step <= RESUME_MAX_STEP_S
 
 
 # -- pure geometry helpers --------------------------------------------------------------

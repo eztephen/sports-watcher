@@ -149,3 +149,45 @@ def test_adjacent_defender_does_not_take_possession():
     b.hold(1.0, D, holder_id=1)
     ev = drive(observations(b.frames))
     assert provisional(ev, "turnover") == [] and len(provisional(ev, "possession_start")) == 1
+
+
+def test_new_hold_at_a_dead_ball_restart_starts_the_possession():
+    # Home has the ball through a stopped clock (free throws, an inbound); a teammate
+    # receives it just before the clock restarts at 5 s.
+    b = PlayBuilder(Scene(L))
+    b.hold(4.0, P, holder_id=3)
+    b.pass_(3, 1, P, flight_s=0.4)
+    received_at = b.t
+    b.hold(2.0, P, holder_id=1)
+    ev = drive(observations(b.frames, running=False, resume_at=5.0))
+    prov = provisional(ev, "possession_start")
+    assert len(prov) == 1 and prov[0].team == "home"
+    assert abs(prov[0].t_pts - received_at) < 0.2
+    assert len(confirmed(ev, "possession_start")) == 1
+
+
+def test_new_hold_after_a_hidden_scoreboard_is_not_a_possession_start():
+    # The clock ran on behind a replay graphic: the same possession continues.
+    b = PlayBuilder(Scene(L))
+    b.hold(3.0, P, holder_id=3)
+    for _ in range(round(9.0 * b.fps)):
+        b.frame(P, None, camera_hint="replay")
+    b.hold(2.0, P, holder_id=1)
+    ev = drive(observations(b.frames, hidden=[(3.0, 12.0)]))
+    assert len(provisional(ev, "possession_start")) == 1
+
+
+def test_new_hold_after_a_misread_and_a_hidden_clock_is_not_a_possession_start():
+    # One wrong clock read, then the scoreboard is covered while play goes on. The first
+    # tick after it returns is one step down from the last read, but not from the clock
+    # value at the previous change, so the clock did not stand still.
+    b = PlayBuilder(Scene(L))
+    b.hold(3.0, P, holder_id=3)
+    b.pass_(3, 1, P, flight_s=0.4)
+    b.hold(6.0, P, holder_id=1)
+    b.pass_(1, 3, P, flight_s=0.4)
+    b.hold(3.0, P, holder_id=3)
+    obs = observations(b.frames, hidden=[(1.5, 9.0)])
+    misread = next(o for o in obs if o.scoreboard is not None and o.t_pts >= 1.2)
+    misread.scoreboard.clock_s = 20.0
+    assert len(provisional(drive(obs), "possession_start")) == 1

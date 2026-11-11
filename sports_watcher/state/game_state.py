@@ -86,7 +86,10 @@ class GameState:
     clock_running: bool = False
     clock_state: ClockState = "unknown"
     clock_running_since_pts: float | None = None  # when the gate last opened
+    clock_resumed_from_stop: bool = False  # the gate last opened on a clock that had stood still
     last_clock_change_pts: float | None = None
+    last_clock_change_value: float | None = None  # the clock read at that change
+    last_clock_step_s: float | None = None  # how far that change moved the clock
     last_scoreboard_pts: float | None = None
     last_free_throw_pts: float | None = None  # release by the lane formation's shooter
     camera_left_main_pts: float | None = None
