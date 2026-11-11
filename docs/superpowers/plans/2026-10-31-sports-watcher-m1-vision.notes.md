@@ -141,7 +141,7 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   replay 0.25) against 0.885 for the embedding-only probe, so the embedding-only probe stays
   as `models/camera/probe.json` (the other is `probe.detector-features.json`). Golden camera
   accuracy on `pba_ros_cvg_q1`: 0.866, under the 0.9 floor.
-- Perception on `pba_ros_cvg_vision` (5,400 frames, 0.38 s per frame without the court model):
+- Perception on `pba_ros_cvg_vision` (5,400 frames, about 0.36 s per frame without the court model):
   the detector holds up: ball in 99 % of main-camera frames (detected or predicted), rim in
   93 %, a median of 10 players. Tracks are short: 431 player tracks, median 29 frames.
 - Team assignment was the first failure: KMeans on SigLIP crop embeddings labelled 21,722
