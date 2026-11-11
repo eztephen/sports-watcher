@@ -207,8 +207,11 @@ def _track(tracks: list[Track], track_id: int) -> Track | None:
 
 
 def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
-    if vf.ball is None:
-        return  # ball unseen: holder and candidate carry over
+    if vf.ball is None or vf.ball.source == "predicted":
+        # Ball unseen: holder and candidate carry over. A predicted position is the ball
+        # filter's guess while the ball is hidden, and on footage it drifts onto the nearest
+        # defender; only a detection can put the ball in new hands.
+        return
     if new.holder is not None:
         held = _track(vf.tracks, new.holder.track_id)
         if held is not None and _inside(vf.ball.xy, grown(held.box, BOX_GROW)):

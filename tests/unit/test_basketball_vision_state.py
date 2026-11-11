@@ -118,3 +118,19 @@ def test_holder_stays_while_the_ball_is_inside_their_box():
     b.hold(1.0, S, holder_id=1)
     states = _states(observations(b.frames))
     assert all(s.holder is None or s.holder.track_id == 1 for s in states[10:])
+
+
+def test_predicted_ball_does_not_hand_the_ball_to_a_defender():
+    players = {1: ("home", HOME_A), 2: ("away", AWAY_B)}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, players, holder_id=1)
+    for _ in range(15):  # the ball is hidden; the filter's guess drifts onto the defender
+        b.frame(players, (AWAY_B, 1.0, "predicted"))
+    states = _states(observations(b.frames))
+    assert states[-1].holder is not None and states[-1].holder.track_id == 1
+    assert states[-1].possession == "home"
+    for _ in range(15):  # seen there for real: the defender has it
+        b.frame(players, (AWAY_B, 1.0))
+    states = _states(observations(b.frames))
+    assert states[-1].holder is not None and states[-1].holder.track_id == 2
+

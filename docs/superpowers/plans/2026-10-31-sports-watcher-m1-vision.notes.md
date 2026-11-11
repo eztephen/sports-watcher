@@ -166,3 +166,22 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   ball observations and a longer hold before a possession flips; backfilled attempts dated
   from the rim interaction or the last release instead of the score change; a pass over the
   truth file against the video (it was drafted from contact sheets).
+- Holder rule: a predicted ball position (the filter's guess while the ball is hidden) no
+  longer establishes a holder; only a detection does. On `pba_ros_cvg_vision` that takes
+  possession_start from 2 true / 17 false to 1 true / 9 false (the true one lost is 43.83 s
+  against a truth of 42.5 s, outside the 1 s tolerance both times it was counted). A 0.6 s
+  team-level hold before possession flips was tried and dropped: it duplicates the 0.5 s
+  confirmer, and the false possessions that remain all last longer than that.
+- What is left is perception, not rule logic. Seen on frames: a "detected" ball in the crowd
+  at 75.5 s (holder runs of 45 frames on the wrong team follow); the dribbler at 153.5 s
+  (Converge 3) carrying a home label, his torso window covered by a defender, on a track too
+  short for the per-track vote to correct; tracks of about one second throughout. The truth
+  file is also in doubt at 72 to 80 s: at 75.5 s the frame shows Rain or Shine running a
+  break to the left with the shot clock at 24, where the truth has a Converge rebound and
+  basket.
+- Ordered next steps for the floors: (1) check the truth file against the video at 39 to 41,
+  72 to 80 and 150 to 170 s; (2) reject ball detections outside the playing area or far from
+  every player; (3) longer tracks (tracker association through occlusion), so team votes and
+  holders stop resetting each second; (4) team feature from the upper torso only, with votes
+  weighted by box overlap; (5) backfilled attempts dated from the rim interaction; (6) the
+  court model for free throws, zones and the playing-area mask.
