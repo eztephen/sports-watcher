@@ -168,8 +168,8 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   truth file against the video (it was drafted from contact sheets).
 - Holder rule: a predicted ball position (the filter's guess while the ball is hidden) no
   longer establishes a holder; only a detection does. On `pba_ros_cvg_vision` that takes
-  possession_start from 2 true / 17 false to 1 true / 9 false (the true one lost is 43.83 s
-  against a truth of 42.5 s, outside the 1 s tolerance both times it was counted). A 0.6 s
+  possession_start from 2 true / 17 false to 1 true / 9 false (the true one lost is the
+  150.9 s Converge start, which no longer drafts; a home start at 151.6 s comes first). A 0.6 s
   team-level hold before possession flips was tried and dropped: it duplicates the 0.5 s
   confirmer, and the false possessions that remain all last longer than that.
 - What is left is perception, not rule logic. Seen on frames: a "detected" ball in the crowd
