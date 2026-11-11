@@ -8,6 +8,7 @@ from sports_watcher.perception.types import Track
 from sports_watcher.sports.base import EventDraft, Observation
 from sports_watcher.sports.basketball.confirmers import (
     base_confidence,
+    holding,
     possession_changes_within,
     rebound_holds,
     team_holds,
@@ -52,11 +53,16 @@ class PossessionStartRule:
         self._drafted_since: float | None = None
         self._drafted_restart: float | None = None
         self._holds: list[float] = []  # recent hold starts of the team in possession
+        self._current: tuple[str, float] | None = None  # the possession being watched
+        self._held = False  # ... and whether its team was seen holding the ball
+        self._before: str | None = None  # the team that had the ball before it
+        self._resumed_since: float | None = None  # a return after a hold too brief to count
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
         h = new.holder
         if h is not None and h.since_pts not in self._holds and new.possession in ("home", "away") and h.team in (new.possession, "unknown"):
             self._holds = [s for s in self._holds if obs.t_pts - s <= 4 * RESTART_GRACE_S] + [h.since_pts]
+        self._watch(new, obs.t_pts)
         if new.possession not in ("home", "away") or h is None or not new.clock_running:
             return []
         since = new.possession_since_pts
@@ -77,6 +83,8 @@ class PossessionStartRule:
             return []
         else:
             self._drafted_since = since
+            if since == self._resumed_since:
+                return []
         player, court_xy, det = _player(new.tracks, new.holder.track_id)
         return [
             EventDraft(
@@ -90,6 +98,22 @@ class PossessionStartRule:
                 court_xy=court_xy,
             )
         ]
+
+    def _watch(self, new: GameState, t_pts: float) -> None:
+        """Follow the possession and whether its team was seen with the ball in hand. When
+        the ball comes back to the team that had it before a possession nobody was seen to
+        hold (its start is retracted), the old possession goes on: no new start."""
+        since = new.possession_since_pts
+        if since is None or new.possession not in ("home", "away"):
+            return
+        if self._current is None or self._current[1] != since:
+            returned = self._current is not None and not self._held and self._before == new.possession
+            if self._current is not None and self._held:
+                self._before = self._current[0]
+            self._resumed_since = since if returned else None
+            self._current, self._held = (new.possession, since), returned
+        if holding(new, t_pts):
+            self._held = True
 
 
 class ReboundRule:

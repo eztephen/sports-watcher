@@ -315,3 +315,32 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
 - Possession errors left: 76.67 s against 75.0 (the ball is only predicted from 74.2 to
   76.0 s and the 72.75 s shot is never seen), and the 154.83 / 156.03 s pair from the
   mislabelled dribbler on the fast break.
+
+## The fast-break blip (2026-11-12)
+
+- The home start at 154.83 s is one hold of 0.37 s by a real Rain or Shine defender (track
+  1012) whose box covers the ball while the Converge dribbler, mislabelled home, has it.
+  Nobody is seen holding the ball for the next 0.8 s, then Converge again at 156.03 s. The
+  `team_holds` confirmer passed it because possession, once flipped, stayed home for 0.5 s
+  with no holder at all.
+- A minimum hold of 0.5 s in the state before possession changes sides was tried again and
+  dropped again: it removes the provisional event that the spec retracts
+  (`test_steal_flipping_back_within_half_a_second_is_retracted`) and delays rebounds.
+- Ruling: `team_holds` confirms only when a player is seen with the ball in hand 0.5 s or
+  more into the possession; possession alone is not enough — cost if wrong: a team that
+  gains the ball and shoots within half a second has its possession_start retracted when
+  the other team rebounds.
+- Ruling: when the ball returns to the team that had it before a possession nobody was seen
+  to hold, the old possession goes on and no new possession_start is drafted — cost if
+  wrong: a real steal and steal-back inside half a second shows as one possession.
+- Scores on `pba_ros_cvg_vision` (true / false / missed): possession_start 5 / 1 / 1,
+  precision 0.83 and recall 0.83, over the 0.8 floors for the first time. shot_attempt
+  2 / 5 / 3 and shot_made 2 / 2 / 2 unchanged; turnover 0 / 1 / 0 (was 0 / 2 / 0).
+- Left for possession: 76.67 s against 75.0. The detector loses the ball from 74.2 to
+  76.0 s (the inbounder behind the baseline), and the one detection at 74.03 s is 580 px
+  from the ball's last position under the rim. Not a rule problem.
+- Loose end: the turnover rule still drafts a provisional turnover at 156.03 s when the
+  ball returns after the blip; it expires on the TTL and is retracted.
+- `tests/golden` after this change: 1 passed, 2 failed. `pba_ros_cvg_vision` now passes the
+  possession_start floor and fails on shot_attempt (2 / 5 / 3); `pba_ros_cvg_q1` camera
+  accuracy is still 0.866 against 0.9.

@@ -191,3 +191,29 @@ def test_new_hold_after_a_misread_and_a_hidden_clock_is_not_a_possession_start()
     misread = next(o for o in obs if o.scoreboard is not None and o.t_pts >= 1.2)
     misread.scoreboard.clock_s = 20.0
     assert len(provisional(drive(obs), "possession_start")) == 1
+
+
+def test_brief_hold_then_a_loose_ball_is_retracted_and_the_first_team_plays_on():
+    # A defender's box covers the ball for a third of a second, nobody is seen with it for
+    # most of a second, then the team that had it holds it again: one possession, not three.
+    loose = ((20.0, 3.0), 1.0)
+    b = PlayBuilder(Scene(L))
+    b.hold(1.0, P, holder_id=1)
+    b.hold(0.35, P, holder_id=2)
+    for _ in range(24):
+        b.frame(P, loose)
+    b.hold(1.5, P, holder_id=3)
+    ev = drive(observations(b.frames))
+    away = [e for e in provisional(ev, "possession_start") if e.team == "away"]
+    assert len(away) == 1
+    assert [e.supersedes for e in retracted(ev, "possession_start")] == [away[0].id]
+    assert len([e for e in provisional(ev, "possession_start") if e.team == "home"]) == 1
+
+
+def test_steal_and_steal_back_after_a_real_hold_are_two_possessions():
+    b = PlayBuilder(Scene(L))
+    b.hold(1.0, P, holder_id=1)
+    b.hold(0.8, P, holder_id=2)
+    b.hold(1.0, P, holder_id=1)
+    ev = drive(observations(b.frames))
+    assert [e.team for e in confirmed(ev, "possession_start")] == ["home", "away", "home"]

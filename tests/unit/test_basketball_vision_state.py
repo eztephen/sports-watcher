@@ -222,3 +222,4 @@ def test_possession_after_a_made_basket_is_not_flipped_by_the_next_label():
     b.hold(3.0, players, holder_id=2)
     b.hold(0.5, players, holder_id=3)
     assert _states(observations(b.frames))[-1].possession == "home"
+

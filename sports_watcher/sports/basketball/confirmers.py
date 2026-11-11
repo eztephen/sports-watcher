@@ -72,15 +72,20 @@ def always_confirm() -> Confirmer:
     return confirm
 
 
+def holding(state: GameState, t_pts: float, hold_s: float = HOLD_CONFIRM_S) -> bool:
+    """A player has the ball in hand ``hold_s`` or more into the current possession."""
+    since = state.possession_since_pts
+    return state.holder is not None and since is not None and t_pts - since >= hold_s
+
+
 def team_holds(team: Team, hold_s: float = HOLD_CONFIRM_S) -> Confirmer:
-    """Confirmed once ``team`` has held possession for ``hold_s``; retracted if the other
-    team takes it first."""
+    """Confirmed once ``team`` is seen with the ball in hand ``hold_s`` into its possession;
+    retracted if the other team takes it first. Possession alone is not enough: after a
+    hold too brief to count nobody may be seen with the ball for a while."""
 
     def confirm(draft: EventDraft, state: GameState, obs: Observation) -> Verdict:
-        if state.possession == team and state.possession_since_pts is not None:
-            if obs.t_pts - state.possession_since_pts >= hold_s:
-                return "confirmed"
-            return "pending"
+        if state.possession == team:
+            return "confirmed" if holding(state, obs.t_pts, hold_s) else "pending"
         if state.possession == other(team):
             return "retracted:possession_flipped"
         return "pending"
