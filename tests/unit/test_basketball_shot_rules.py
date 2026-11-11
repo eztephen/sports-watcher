@@ -157,3 +157,28 @@ def test_made_free_throw_is_neither_a_field_goal_nor_double_counted():
     ev = drive(observations(b.frames, running=False, resume_at=5.0, deltas={2.6: (1, 0)}))
     assert len(confirmed(ev, "free_throw_made")) == 1
     assert provisional(ev, "shot_attempt") == [] and provisional(ev, "shot_missed") == []
+
+
+def _late_delta_make():
+    """A make whose score change shows on the bug six seconds after the release."""
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="make")
+    b.hold(9.0, S, holder_id=2)
+    return observations(b.frames, deltas={6.6: (2, 0)})
+
+
+def test_slow_scoreboard_keeps_the_vision_shot_when_the_lag_is_configured():
+    ev = drive(_late_delta_make(), score_lag_s=8.0)
+    att = confirmed(ev, "shot_attempt")
+    assert len(att) == 1 and abs(att[0].t_pts - 0.6) < 0.05  # no retroactive twin at 6.6 s
+    made = confirmed(ev, "shot_made")
+    assert len(made) == 1 and abs(made[0].t_pts - 0.6) < 0.05 and made[0].confidence == 0.9
+    assert provisional(ev, "shot_missed") == [] and retracted(ev, "shot_made") == []
+    assert confirmed(ev, "rebound") == []
+
+
+def test_slow_scoreboard_with_the_default_lag_backfills_a_second_attempt():
+    ev = drive(_late_delta_make())
+    assert len(confirmed(ev, "shot_attempt")) == 2
+    assert retracted(ev, "shot_made")[0].reason == "ttl"

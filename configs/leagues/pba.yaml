@@ -21,6 +21,10 @@ broadcasters:
     scoreboard_roi: {x: 0.045, y: 0.800, w: 0.300, h: 0.095}
     home_side: right
     shot_clock_visible: true
+    # The digits change 5 to 6 s after the ball drops (a "+2" badge shows first) and up to
+    # 8.2 s after the release of a three; measured on four baskets of the 2026-10-30
+    # quarterfinal.
+    score_lag_s: 10.0
     fields:
       away:       {x: 0.226, y: 0.806, w: 0.050, h: 0.044}
       home:       {x: 0.226, y: 0.850, w: 0.050, h: 0.044}

@@ -212,3 +212,14 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   truth's "two" or "three", so a correctly timed attempt without a zone counts as a miss.
 - Scores against the corrected truth, unchanged code: possession_start 2 true / 8 false /
   4 missed; shot_attempt 0 / 10 / 5 (two of the ten are the right shots, rejected on zone).
+- Ruling: `score_lag_s` per broadcaster (default 3 s, One Sports 10 s) replaces the fixed 3 s
+  delta window: an open attempt waits that long for the score change, a vision-only
+  shot_made, a rebound and a turnover live a second longer, and a miss is not called before
+  it is out — cost if wrong: on One Sports those confirmations arrive up to 10 s after the
+  play. The scorer treats an event zone of "unknown" as no claim.
+- Scores on `pba_ros_cvg_vision` after both (corrected truth): shot_attempt 2 true / 6 false /
+  3 missed (was 0 / 10 / 5), shot_made 2 / 2 / 2 (was 0 / 4 / 4), shot_missed 0 / 0 / 1,
+  possession_start 2 / 8 / 4, score_change 7 / 7. The six false attempts: three free throws
+  backfilled as shots (lane formation needs the homography), the 53.32 s layup credited to
+  the wrong team and its backfilled twin at 59.75 s, and the backfill at 80.25 s for the
+  72.75 s shot vision never drafts.

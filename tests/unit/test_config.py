@@ -36,3 +36,10 @@ def test_league_geometry_fields():
 def test_settings_model_and_cache_dirs():
     s = Settings(_env_file=None)
     assert s.models_dir == Path("models") and s.cache_dir == Path("data/cache")
+
+
+def test_score_lag_defaults_to_three_seconds_and_one_sports_sets_ten():
+    from sports_watcher.config import BroadcasterConfig, Roi, load_league
+
+    assert BroadcasterConfig(scoreboard_roi=Roi(x=0, y=0, w=1, h=1)).score_lag_s == 3.0
+    assert load_league("pba").broadcasters["one_sports"].score_lag_s == 10.0

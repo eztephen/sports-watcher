@@ -21,12 +21,14 @@ from sports_watcher.sports.basketball.confirmers import (
 from sports_watcher.sports.basketball.geometry import free_throw_xy
 from sports_watcher.state.game_state import GameState
 
+DEFAULT_TTL_S = 4.0  # the engine's default time to live for a provisional event
 ATTEMPT_CONFIDENCE = 0.7
 RETROACTIVE_CONFIDENCE = 0.4
 MADE_DELTA_CONFIDENCE = 0.9
 MADE_VISION_CONFIDENCE = 0.6
 MISSED_CONFIDENCE = 0.6
-DELTA_WINDOW_S = 3.0
+DELTA_WINDOW_S = 3.0  # default scoreboard lag; a broadcaster's score_lag_s replaces it
+MADE_TTL_MARGIN_S = 1.0  # a vision-only shot_made outlives the lag by this much
 MISS_AFTER_LEAVE_S = 3.0
 NO_RIM_MISS_S = 1.5
 OPEN_ATTEMPT_MAX_S = 10.0
@@ -89,14 +91,17 @@ class ShotOutcomeRule:
 
     name = "shot_outcome"
 
-    def __init__(self) -> None:
+    def __init__(self, score_lag_s: float = DELTA_WINDOW_S) -> None:
         self._open: list[_OpenAttempt] = []
         self._seen: set[float] = set()
+        self._lag = score_lag_s
+        self._miss_wait = max(MISS_AFTER_LEAVE_S, score_lag_s)  # a miss is not called before the lag is out
+        self._open_max = max(OPEN_ATTEMPT_MAX_S, score_lag_s + MADE_TTL_MARGIN_S)
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
         drafts: list[EventDraft] = []
         self._open_new(new)
-        self._open = [a for a in self._open if obs.t_pts - a.t_pts <= OPEN_ATTEMPT_MAX_S]
+        self._open = [a for a in self._open if obs.t_pts - a.t_pts <= self._open_max]
         for team in ("home", "away"):
             d = team_delta(team, prev.score(), new.score())
             if d in (1, 2, 3):
@@ -130,7 +135,7 @@ class ShotOutcomeRule:
             (
                 a
                 for a in reversed(self._open)
-                if a.team == team and not a.resolved and obs.t_pts - a.t_pts <= DELTA_WINDOW_S
+                if a.team == team and not a.resolved and obs.t_pts - a.t_pts <= self._lag
             ),
             None,
         )
@@ -167,6 +172,7 @@ class ShotOutcomeRule:
                     player=PlayerRef(track_id=att.track_id, confidence=0.0),
                     court_xy=att.court_xy,
                     zone=att.zone,
+                    ttl_s=max(DEFAULT_TTL_S, self._lag + MADE_TTL_MARGIN_S),
                 )
             )
         return out
@@ -180,9 +186,9 @@ class ShotOutcomeRule:
             left = ri.left_pts if ri is not None and ri.left_pts is not None and ri.left_pts > att.t_pts else None
             entered = ri is not None and ri.entered_pts is not None and ri.entered_pts > att.t_pts
             if left is not None:
-                miss_t, deadline = left, left + MISS_AFTER_LEAVE_S
+                miss_t, deadline = left, left + self._miss_wait
             elif not entered:
-                miss_t, deadline = att.t_pts + NO_RIM_MISS_S, att.t_pts + NO_RIM_MISS_S + MISS_AFTER_LEAVE_S
+                miss_t, deadline = att.t_pts + NO_RIM_MISS_S, att.t_pts + NO_RIM_MISS_S + self._miss_wait
             else:
                 continue
             if obs.t_pts < deadline:

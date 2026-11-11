@@ -95,7 +95,7 @@ class GameWatcher:
         self._camera = CameraStateTracker()
         self.log_camera_states = log_camera_states
         self.camera_log: list[tuple[float, str]] = []
-        self._plugin = BasketballPlugin(league)
+        self._plugin = BasketballPlugin(league, self.broadcaster_config.score_lag_s)
         self._engine: EventEngine | None = None
 
         self._stop = threading.Event()

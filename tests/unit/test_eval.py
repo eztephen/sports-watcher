@@ -86,6 +86,14 @@ def test_zone_mismatch_does_not_match():
     assert match_events([e], [TruthEvent(t_pts=10.2, type="shot_attempt", team="home")])[0][1] is e
 
 
+def test_unknown_event_zone_is_no_claim():
+    from sports_watcher.events.model import EventStatus
+
+    e = make_event(type="shot_attempt", status=EventStatus.confirmed, t_pts=10.0, zone="unknown")
+    truth_three = TruthEvent(t_pts=10.2, type="shot_attempt", team="home", zone="three")
+    assert match_events([e], [truth_three])[0][1] is e  # no homography: the zone is not a wrong answer
+
+
 def test_camera_state_accuracy():
     from sports_watcher.eval.score import camera_state_accuracy
     from sports_watcher.replay.truth import CameraSegment

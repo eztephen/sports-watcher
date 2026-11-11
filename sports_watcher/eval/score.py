@@ -43,7 +43,8 @@ def _compatible(truth: TruthEvent, event: Event, tolerance_s: float) -> bool:
     both_have_points = truth.points is not None and event.evidence.points is not None
     if both_have_points and truth.points != event.evidence.points:
         return False
-    both_have_zone = truth.zone is not None and event.zone is not None
+    # "unknown" is what a shot carries without a homography: no claim, not a wrong zone.
+    both_have_zone = truth.zone is not None and event.zone not in (None, "unknown")
     return not (both_have_zone and truth.zone != event.zone)
 
 

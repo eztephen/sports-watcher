@@ -19,6 +19,7 @@ from sports_watcher.sports.basketball.rules_possession import (
     TurnoverRule,
 )
 from sports_watcher.sports.basketball.rules_shots import (
+    DELTA_WINDOW_S,
     FreeThrowRule,
     ShotAttemptRule,
     ShotOutcomeRule,
@@ -38,17 +39,20 @@ FULL_AGREEMENT = 1.0
 class BasketballPlugin:
     name = "basketball"
 
-    def __init__(self, league: LeagueConfig) -> None:
+    def __init__(self, league: LeagueConfig, score_lag_s: float = DELTA_WINDOW_S) -> None:
+        """``score_lag_s`` is the broadcaster's scoreboard lag: how long the shot and
+        possession rules wait for a basket to show on the bug."""
         self.league = league
+        self.score_lag_s = score_lag_s
         self._rules: list[Rule] = [
             ScoreChangeRule(),
             PeriodStartRule(league),
             PeriodEndRule(),
             PossessionStartRule(),
-            ReboundRule(),
-            TurnoverRule(league),
+            ReboundRule(score_lag_s),
+            TurnoverRule(league, score_lag_s),
             ShotAttemptRule(),
-            ShotOutcomeRule(),
+            ShotOutcomeRule(score_lag_s),
             FreeThrowRule(league),
             TimeoutRule(),
             TipOffRule(league),

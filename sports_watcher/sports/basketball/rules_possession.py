@@ -23,7 +23,9 @@ SHOT_CLOCK_TURNOVER_CONFIDENCE = 0.5
 SHOT_CLOCK_TURNOVER_TTL_S = 5.0
 NO_RIM_MISS_S = 1.5
 RESTART_GRACE_S = 2.0  # a hold that began this long before the clock restarted still counts
-DELTA_WINDOW_S = 3.0  # the scoreboard may lag a basket by this much
+DELTA_WINDOW_S = 3.0  # default scoreboard lag; a broadcaster's score_lag_s replaces it
+DEFAULT_TTL_S = 4.0  # the engine's default time to live for a provisional event
+LAG_TTL_MARGIN_S = 1.0  # an event that waits out the lag lives this much longer
 
 
 def _track(tracks: list[Track], track_id: int) -> Track | None:
@@ -79,7 +81,8 @@ class ReboundRule:
 
     name = "rebound"
 
-    def __init__(self) -> None:
+    def __init__(self, score_lag_s: float = DELTA_WINDOW_S) -> None:
+        self._lag = score_lag_s
         self._shot_t: float | None = None
         self._score_at: tuple[int, int] = (0, 0)
         self._fired: float | None = None
@@ -113,7 +116,8 @@ class ReboundRule:
                 t_pts=h.since_pts,
                 evidence=vision_evidence(new, obs, track_id=h.track_id, detector_confidence=det, note=note),
                 confidence=base_confidence(REBOUND_CONFIDENCE, new),
-                confirmer=rebound_holds(h.team, shot.team, self._score_at, not_before_pts=shot.t_pts + DELTA_WINDOW_S),
+                confirmer=rebound_holds(h.team, shot.team, self._score_at, not_before_pts=shot.t_pts + self._lag),
+                ttl_s=max(DEFAULT_TTL_S, self._lag + LAG_TTL_MARGIN_S),
                 player=player,
                 court_xy=court_xy,
             )
@@ -126,7 +130,8 @@ class TurnoverRule:
 
     name = "turnover"
 
-    def __init__(self, league: LeagueConfig) -> None:
+    def __init__(self, league: LeagueConfig, score_lag_s: float = DELTA_WINDOW_S) -> None:
+        self._lag = score_lag_s
         self._full = float(league.shot_clock_s)
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
@@ -148,8 +153,9 @@ class TurnoverRule:
                     evidence=vision_evidence(new, obs, note="possession_change"),
                     confidence=base_confidence(TURNOVER_CONFIDENCE, new),
                     confirmer=team_holds_unless_attempt(
-                        new.possession, prev.possession, window, new.score(), not_before_pts=since + DELTA_WINDOW_S
+                        new.possession, prev.possession, window, new.score(), not_before_pts=since + self._lag
                     ),
+                    ttl_s=max(DEFAULT_TTL_S, self._lag + LAG_TTL_MARGIN_S),
                 )
             ]
         if (

@@ -48,6 +48,9 @@ class BroadcasterConfig(BaseModel):
     home_side: Literal["left", "right"] = "left"
     shot_clock_visible: bool = True
     fields: FieldRois | None = None
+    # The longest the score on the bug trails a shot's release. Shot, rebound and turnover
+    # rules wait this long for the score change before they give up on a made shot.
+    score_lag_s: float = 3.0
 
 
 class LeagueConfig(BaseModel):
