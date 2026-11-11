@@ -55,7 +55,7 @@ class PossessionStartRule:
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
         h = new.holder
-        if h is not None and h.team == new.possession and h.since_pts not in self._holds:
+        if h is not None and h.since_pts not in self._holds and new.possession in ("home", "away") and h.team in (new.possession, "unknown"):
             self._holds = [s for s in self._holds if obs.t_pts - s <= 4 * RESTART_GRACE_S] + [h.since_pts]
         if new.possession not in ("home", "away") or h is None or not new.clock_running:
             return []

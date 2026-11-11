@@ -34,6 +34,7 @@ BOX_GROW = 0.25
 CLOCK_RUNNING_S = 2.0
 ASSUMED_MAX_S = 5.0
 RESUME_MAX_STEP_S = 1.5
+POST_BASKET_LOCK_S = 3.0  # the inbound and the first passes after a made basket
 MIN_SCOREBOARD_CONFIDENCE = 0.6
 RIM_REGION_WIDTHS = 2.0
 SHOT_GATE_WIDTHS = 1.5
@@ -230,6 +231,8 @@ def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
         held = _track(vf.tracks, new.holder.track_id)
         if held is not None and _inside(vf.ball.xy, grown(held.box, BOX_GROW)):
             new.holder_candidate = None
+            if new.holder.team == "unknown" and held.team in ("home", "away"):
+                new.holder = replace(new.holder, team=held.team)  # the label arrived mid-hold
             return  # still in the holder's reach: a nearer defender does not take it
     prefer = new.possession if new.possession in ("home", "away") else None
     cand = holder_candidate(vf.tracks, vf.ball, prefer)
@@ -241,8 +244,12 @@ def _apply_holder(prev: GameState, new: GameState, vf, t: float) -> None:
         return
     if prev.ball is not None and vf.ball.xy[1] < prev.ball.xy[1] - RISING_PX:
         # A rising ball is airborne: it may pass over a farther player's box in 2D
-        # without being in anyone's hands. No candidate until it stops rising.
-        new.holder, new.holder_candidate = None, None
+        # without being in anyone's hands. It starts no candidate and makes no holder,
+        # but a candidate it was already with keeps waiting: a dribble rises on every
+        # bounce, and the next frame it falls counts the whole time towards the hold.
+        new.holder = None
+        same = prev.holder_candidate is not None and prev.holder_candidate[0] == cand
+        new.holder_candidate = prev.holder_candidate if same else None
         return
     since = t
     if prev.holder_candidate is not None and prev.holder_candidate[0] == cand:
@@ -278,9 +285,11 @@ def _apply_possession(new: GameState) -> None:
         # After a basket the ball belongs to the team scored on, whatever label the player
         # who picks it up carries (team labels are least reliable under the basket).
         new.possession, new.possession_since_pts = scored_on[0], h.since_pts
+        new.possession_locked_until_pts = h.since_pts + POST_BASKET_LOCK_S
         return
-    if h.since_pts == new.possession_since_pts:
-        return  # the hold that started this possession does not flip it back
+    locked = new.possession_locked_until_pts
+    if locked is not None and h.since_pts < locked:
+        return  # the inbound: a label does not hand the ball back to the team that scored
     if h.team in ("home", "away") and h.team != new.possession:
         new.possession = h.team
         new.possession_since_pts = h.since_pts

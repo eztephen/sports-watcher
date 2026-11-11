@@ -83,6 +83,7 @@ class GameState:
     lane_formation: LaneFormation | None = None
     free_throws_pending: int = 0
     possession_since_pts: float | None = None
+    possession_locked_until_pts: float | None = None  # after a made basket: no flip on a label
     clock_running: bool = False
     clock_state: ClockState = "unknown"
     clock_running_since_pts: float | None = None  # when the gate last opened

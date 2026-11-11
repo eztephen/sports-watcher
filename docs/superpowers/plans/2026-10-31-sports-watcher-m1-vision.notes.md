@@ -284,3 +284,34 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   154.83 s from the blurred fast break and the away start at 156.03 s that corrects it.
   Colour cannot fix the last pair; it needs a learned appearance model or a possession
   rule that distrusts a flip with no visible transfer.
+
+## The late holder and the 150 to 160 s truth (2026-11-12)
+
+- Truth check, 148.5 to 160 s against the video: a close-up until about 150.2 s, then the
+  main camera with a Converge guard already dribbling in the backcourt (shot clock 24, game
+  clock 4:49, first tick to 4:48 at 151.25 s). Converge keeps the ball to past 160 s; there
+  is no turnover. The truth's away possession_start at 150.0 s stands (the inbound itself is
+  behind the close-up). The watcher's home start at 154.83 s and away start at 156.03 s are
+  both false.
+- Why the restart hold was dated 151.53 s: the "rising ball is airborne" guard cleared the
+  holder candidate on every up-bounce of a dribble, so a dribbler picked up without a
+  holder needed five consecutive falling frames to register. Ruling: a rising ball still
+  starts no candidate and makes no holder, but a candidate it was already with keeps
+  waiting, and the hold is dated from its first frame — cost if wrong: a lob that falls and
+  rises again inside a farther player's box can register him sooner than before.
+- Two things that change exposed, both fixed:
+  - A holder registered before the team assigner has fitted kept the team "unknown" for the
+    whole hold (the first possession moved from 22.97 to 23.77 s). The holder now takes his
+    track's team when it arrives mid-hold; only unknown is replaced, a label that flips
+    mid-hold is not followed.
+  - After the 36.6 s basket an early pick-up at 38.70 s took the hand-over and the
+    inbounder, labelled away at 39.17 s, flipped it back. Ruling: for 3 s after the
+    hand-over a holder's label does not change possession — cost if wrong: a steal within
+    3 s of a made basket is announced late or not at all.
+- Scores on `pba_ros_cvg_vision` (true / false / missed): possession_start 5 / 3 / 1
+  (precision 0.62, recall 0.83; was 4 / 4 / 2), shot_attempt 2 / 5 / 3, shot_made 2 / 2 / 2,
+  turnover 0 / 2 / 0. Starts now at 22.73, 38.70, 54.70, 150.67 and 168.43 s against 22.0,
+  39.5, 54.8, 150.0 and 168.0 s in the truth.
+- Possession errors left: 76.67 s against 75.0 (the ball is only predicted from 74.2 to
+  76.0 s and the 72.75 s shot is never seen), and the 154.83 / 156.03 s pair from the
+  mislabelled dribbler on the fast break.

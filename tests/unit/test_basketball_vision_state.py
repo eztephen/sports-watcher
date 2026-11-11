@@ -180,3 +180,45 @@ def test_after_a_miss_the_holders_own_label_decides_possession():
     states, _ = _after_shot("miss")
     assert states[-1].holder is not None and states[-1].holder.track_id == 3
     assert states[-1].possession == "home"
+
+
+def test_a_dribbler_becomes_the_holder_although_the_ball_rises_on_every_bounce():
+    players = {1: ("home", HOME_A), 2: ("away", (16.0, 8.0))}
+    b = PlayBuilder(Scene(L))
+    heights = [1.0, 0.8, 0.6, 0.4, 0.2, 0.4, 0.6, 0.8]  # four frames down, four up
+    for i in range(24):
+        b.frame(players, (HOME_A, heights[i % len(heights)]))
+    states = _states(observations(b.frames))
+    assert states[-1].holder is not None and states[-1].holder.track_id == 1
+    assert states[-1].holder.since_pts < 0.1
+    assert states[-1].possession == "home"
+
+
+def test_holder_takes_the_team_once_his_track_gets_a_label():
+    # Team labels arrive only after the assigner has seen enough players.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, {1: ("unknown", HOME_A), 2: ("unknown", AWAY_B)}, holder_id=1)
+    started = b.frames[0].t_pts
+    b.hold(0.5, {1: ("home", HOME_A), 2: ("away", AWAY_B)}, holder_id=1)
+    states = _states(observations(b.frames))
+    assert states[-1].holder.team == "home"
+    assert states[-1].possession == "home" and states[-1].possession_since_pts == started
+
+
+def test_possession_after_a_made_basket_is_not_flipped_by_the_next_label():
+    # Home scores. An away player takes the ball out of the net, then the inbounder, who
+    # carries a home label, holds it half a second later: still away's ball.
+    shooter, under = (22.0, 7.5), (26.5, 7.5)
+    players = {1: ("home", shooter), 2: ("away", under), 3: ("home", (27.5, 6.0))}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, players, holder_id=1)
+    b.shot(1, players, "right", outcome="make")
+    b.hold(0.4, players, holder_id=2)
+    b.pass_(2, 3, players, flight_s=0.2)
+    b.hold(0.5, players, holder_id=3)
+    states = _states(observations(b.frames))
+    assert states[-1].holder.track_id == 3 and states[-1].possession == "away"
+    # Long after the basket a home hold is a steal.
+    b.hold(3.0, players, holder_id=2)
+    b.hold(0.5, players, holder_id=3)
+    assert _states(observations(b.frames))[-1].possession == "home"
