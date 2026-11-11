@@ -1,6 +1,6 @@
 """The real perceiver: ONNX detector, ball crop, tracker, court mapper, team assigner and
 camera probe composed into one VisionFrame per frame. Optional models degrade: no court
-model means no homography, no SigLIP means no teams and no probe, no probe means hint
+model means no homography, no SigLIP means no camera probe, no probe means hint
 ``main`` at confidence 0.5."""
 
 from __future__ import annotations
@@ -23,7 +23,12 @@ from sports_watcher.perception.court import (
 )
 from sports_watcher.perception.detector import OnnxDetector, OnnxKeypointModel
 from sports_watcher.perception.models import ModelSet, settings_version
-from sports_watcher.perception.team import SiglipEmbedder, TeamAssigner, parse_color
+from sports_watcher.perception.team import (
+    SiglipEmbedder,
+    TeamAssigner,
+    jersey_features,
+    parse_color,
+)
 from sports_watcher.perception.tracker import BallFilter, Detection, Tracker
 from sports_watcher.perception.types import (
     BallObs,
@@ -82,16 +87,15 @@ class OnnxPerceiver:
             template=hashlib.sha256(template_text.encode()).hexdigest()[:12],
             keypoint_every_s=keypoint_every_s,
             probe_every_s=probe_every_s,
+            team_features="torso-lab",
         )
 
         self._embed: SiglipEmbedder | None = SiglipEmbedder(models.siglip, providers) if models.siglip else None
-        self._team: TeamAssigner | None = None
-        if self._embed is not None:
-            self._team = TeamAssigner(
-                self._embed,
-                parse_color(home_color) if home_color else None,
-                parse_color(away_color) if away_color else None,
-            )
+        self._team: TeamAssigner | None = TeamAssigner(
+            jersey_features,
+            parse_color(home_color) if home_color else None,
+            parse_color(away_color) if away_color else None,
+        )
         self._probe: CameraProbe | None = None
         if models.camera_probe is not None and self._embed is not None:
             self._probe = CameraProbe.load(models.camera_probe)

@@ -94,3 +94,27 @@ def test_refit_without_colours_keeps_the_mapping():
         a.observe(100 + (t % 10), BLUE, float(t))
         a.observe(t % 10, RED, float(t))
     assert (a.team_of(0), a.team_of(100)) == first and first[0] != first[1]
+
+
+def _player_crop(jersey_bgr, rng):
+    """A player-like crop: floor background, a jersey block over the torso, skin and dark shorts."""
+    crop = np.full((120, 48, 3), (120, 170, 200), np.uint8)  # wooden floor
+    crop[10:28, 16:32] = (120, 150, 200)  # head
+    crop[28:70, 8:40] = jersey_bgr
+    crop[70:90, 10:38] = jersey_bgr
+    crop[90:118, 14:34] = (110, 140, 190)  # legs
+    noise = rng.integers(-12, 13, crop.shape)
+    return np.clip(crop.astype(int) + noise, 0, 255).astype(np.uint8)
+
+
+def test_jersey_features_split_white_from_blue_kits():
+    from sports_watcher.perception.team import jersey_features
+
+    rng = np.random.default_rng(0)
+    a = TeamAssigner(jersey_features, parse_color("white"), parse_color("navy"), fit_after=40)
+    for i in range(20):
+        a.observe(i, _player_crop((245, 245, 245), rng), 0.0)
+        a.observe(100 + i, _player_crop((200, 60, 30), rng), 0.0)  # royal blue, BGR
+    assert a.fitted
+    assert {a.team_of(i) for i in range(20)} == {"home"}
+    assert {a.team_of(100 + i) for i in range(20)} == {"away"}
