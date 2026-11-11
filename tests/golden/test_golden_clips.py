@@ -82,11 +82,13 @@ def test_golden_clip_events(clip: Path) -> None:
         assert s.recall >= floor and s.precision >= floor, (event_type, report.model_dump())
     if watcher.vision_enabled:
         confirmed = [e for e in watcher.events if e.status == EventStatus.confirmed]
+        # The score change follows the release by up to the broadcaster's scoreboard lag.
+        window = max(MADE_WINDOW_S, watcher.broadcaster_config.score_lag_s)
         for made in (e for e in confirmed if e.type == "shot_made"):
             assert any(
-                e.type == "score_change" and e.team == made.team and abs(e.t_pts - made.t_pts) <= MADE_WINDOW_S
+                e.type == "score_change" and e.team == made.team and abs(e.t_pts - made.t_pts) <= window
                 for e in confirmed
-            ), f"shot_made at {made.t_pts} has no score_change within {MADE_WINDOW_S} s"
+            ), f"shot_made at {made.t_pts} has no score_change within {window} s"
     if skipped and len(skipped) == len(checks):
         pytest.skip(f"no perception cache or weights: {sorted(skipped)} not checked")
     if skipped:

@@ -386,3 +386,9 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
 - Found on the way, not fixed: `shot_path_passes_rim` can pass on a path whose last point
   is a catch far below the earlier points (the quadratic fit flips the sign of the linear
   term). Seen on a synthetic play only.
+- `tests/golden` checked that every confirmed shot_made has a score_change within a fixed
+  3 s. On One Sports the score follows by 5 to 6 s, so both clips failed that check once the
+  floors passed. The check now uses the broadcaster's `score_lag_s`. Result: both clip
+  tests pass (`pba_ros_cvg_vision` with score_change 0.9, possession_start 0.8 and
+  shot_attempt 0.8; `pba_ros_cvg_q1`), and only camera accuracy on `pba_ros_cvg_q1` fails
+  (0.866 against 0.9). `tests/integration` passed in the run before.
