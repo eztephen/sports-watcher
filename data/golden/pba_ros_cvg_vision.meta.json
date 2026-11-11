@@ -13,11 +13,10 @@
   },
   "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 00:28:00-00:31:00 (minutes 1:00 to 4:00 of the 00:27:00-00:31:00 download)",
   "notes": "Main-camera play from about 7 to 16 s, 20 to 40 s, 43 to 57 s, 60 to 77 s, 81 to 94 s, 150 to 169 s and 172 to 180 s; free throws around 116 to 125 s; a top-down rim replay at 128 to 132 s and close-ups elsewhere. Top row of the bug is the away team (Converge), bottom row home (Rain or Shine).",
-  "truth_status": "drafted from 2 fps and 4 fps contact sheets on 2026-11-05; needs a pass against the video",
+  "truth_status": "drafted from contact sheets on 2026-11-05; the four baskets at 36, 54, 73 and 165 s and the possessions after them were checked frame by frame (0.1 s rim crops) on 2026-11-11; free throws and 150-160 s still unchecked",
   "truth_uncertain": [
-    "possession changes: this feed resets the shot clock to 24 on offensive rebounds (seen at 55.5 s with the Rain or Shine putback), so the resets at 39.5, 75.0 and 167.5 s are read as offensive rebounds, not changes of possession; confirm at 39-41 s and 75-77 s where the frames look like a transition",
-    "the Converge basket at 40.0 s and the one at 76.75 s fall at the cut to a close-up; the release times are +/-0.5 s",
-    "the second free throw (133.0 s) is not on the main camera; only its score change at 134.5 s is observable",
-    "zones: the 166.0 s Converge attempt may be a three; left without a zone"
+    "this feed resets the shot clock to 24 right after a made basket, about 4 s before the score changes on the bug: the first draft read those resets as offensive rebounds and invented a miss, a rebound and a second shot at 36-40, 54-56, 73-77 and 165-170 s; each is one made shot",
+    "possession_start after a basket is dated from the first frame the inbounding team holds the ball (39.5, 54.8, 75.0, 168.0 s), +/-0.5 s",
+    "the second free throw (133.0 s) is not on the main camera; only its score change at 134.5 s is observable"
   ]
 }

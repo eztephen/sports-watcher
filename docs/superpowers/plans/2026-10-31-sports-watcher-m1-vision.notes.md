@@ -185,3 +185,30 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   holders stop resetting each second; (4) team feature from the upper torso only, with votes
   weighted by box overlap; (5) backfilled attempts dated from the rim interaction; (6) the
   court model for free throws, zones and the playing-area mask.
+
+## Truth file check and the scoreboard lag (2026-11-11)
+
+- The truth for `pba_ros_cvg_vision` was checked against the video (0.5 s contact sheets and
+  0.1 s crops of the rim). All four "miss, offensive rebound, second shot" sequences in the
+  first draft were one made shot each: Converge two released 36.4 s (through the net about
+  37.8), Rain or Shine layup 53.6 s (rolls on the rim, drops 54.3), Converge two 72.75 s
+  (drops 73.9), Converge three 165.0 s (drops about 166.5). The draft had read the shot
+  clock's reset to 24 as an offensive rebound; on this feed it resets right after a made
+  basket. Sixteen invented events removed, four shot_made added at the release time, and the
+  four possession starts after those baskets moved to the first frame the inbounding team
+  holds the ball (39.5, 54.8, 75.0, 168.0 s). The draft is kept in
+  `tmp/pba_ros_cvg_vision.truth.before.jsonl` (untracked). Free throws and 150 to 160 s are
+  still unchecked.
+- One Sports' score bug trails the basket by 5 to 6 s: net at 37.8, 54.3, 73.9 and 166.5 s,
+  score change read at 43.0, 59.0, 79.5 and 172.5 s (a "+2" badge shows about 1.5 s earlier,
+  the digits change last).
+- That lag is what breaks the shot rules on this feed. Vision drafts the attempts at 36.58 and
+  165.05 s and a shot_made from the rim crossing for each, then the made event dies on the 4 s
+  TTL and the open attempt falls out of the 3 s DELTA_WINDOW_S, so the late delta drafts a
+  second, retroactive attempt and make at the score-change time (43.5, 173.25 s). The same
+  happens at 53.32 s, where the shooter also carries the wrong team. The 72.75 s shot is not
+  seen by vision at all.
+- Scorer: an event zone of "unknown" (no homography) is treated as a different zone from the
+  truth's "two" or "three", so a correctly timed attempt without a zone counts as a miss.
+- Scores against the corrected truth, unchanged code: possession_start 2 true / 8 false /
+  4 missed; shot_attempt 0 / 10 / 5 (two of the ten are the right shots, rejected on zone).
