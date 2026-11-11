@@ -39,9 +39,12 @@ FULL_AGREEMENT = 1.0
 class BasketballPlugin:
     name = "basketball"
 
-    def __init__(self, league: LeagueConfig, score_lag_s: float = DELTA_WINDOW_S) -> None:
+    def __init__(
+        self, league: LeagueConfig, score_lag_s: float = DELTA_WINDOW_S, score_delay_s: float | None = None
+    ) -> None:
         """``score_lag_s`` is the broadcaster's scoreboard lag: how long the shot and
-        possession rules wait for a basket to show on the bug."""
+        possession rules wait for a basket to show on the bug. ``score_delay_s`` is its
+        usual value, used to date a basket only the scoreboard saw."""
         self.league = league
         self.score_lag_s = score_lag_s
         self._rules: list[Rule] = [
@@ -52,7 +55,7 @@ class BasketballPlugin:
             ReboundRule(score_lag_s),
             TurnoverRule(league, score_lag_s),
             ShotAttemptRule(),
-            ShotOutcomeRule(score_lag_s),
+            ShotOutcomeRule(score_lag_s, score_delay_s),
             FreeThrowRule(league),
             TimeoutRule(),
             TipOffRule(league),

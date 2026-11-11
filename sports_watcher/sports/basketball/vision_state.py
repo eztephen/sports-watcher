@@ -34,6 +34,9 @@ BOX_GROW = 0.25
 CLOCK_RUNNING_S = 2.0
 ASSUMED_MAX_S = 5.0
 RESUME_MAX_STEP_S = 1.5
+FREE_GAP_S = 0.75  # a longer gap in detections restarts the flight (a high arc leaves the frame for less)
+RIM_SHOT_RELEASE_GAP_S = 3.0  # hidden time between the dated release and the seen flight
+RIM_SHOT_FLIGHT_S = 2.5
 POST_BASKET_LOCK_S = 3.0  # the inbound and the first passes after a made basket
 MIN_SCOREBOARD_CONFIDENCE = 0.6
 RIM_REGION_WIDTHS = 2.0
@@ -210,6 +213,7 @@ def apply_vision(prev: GameState, new: GameState, obs: Observation, league: Leag
     new.rim_interaction = replace(prev.rim_interaction) if prev.rim_interaction is not None else None
 
     _apply_holder(prev, new, vf, t)
+    _apply_ball_free(new, vf, t)
     _apply_possession(new)
     _apply_release(prev, new, vf, t, league)
     _apply_ball_path(new, vf, t)
@@ -276,6 +280,19 @@ def _scored_on(state: GameState) -> tuple[Team, float] | None:
     return ("away" if shot.team == "home" else "home"), ri.crossed_pts
 
 
+def _apply_ball_free(new: GameState, vf, t: float) -> None:
+    """Track since when the ball has been seen in the air: detected, out of every player's
+    reach, without a gap longer than ``FREE_GAP_S`` (after a gap nobody knows where it was)."""
+    if vf.ball is None or vf.ball.source != "detected":
+        return
+    seen, new.ball_seen_pts = new.ball_seen_pts, t
+    in_reach = any(tr.cls == "player" and _inside(vf.ball.xy, grown(tr.box, BOX_GROW)) for tr in vf.tracks)
+    if in_reach:
+        new.ball_free_since_pts = None
+    elif new.ball_free_since_pts is None or seen is None or t - seen > FREE_GAP_S:
+        new.ball_free_since_pts = t
+
+
 def _apply_possession(new: GameState) -> None:
     h = new.holder
     if h is None:
@@ -327,15 +344,33 @@ def _apply_ball_path(new: GameState, vf, t: float) -> None:
         return
     if not new.ball_path or new.ball_path[-1][0] != t:
         new.ball_path.append((t, vf.ball.xy[0], vf.ball.xy[1]))
-    already = new.last_shot is not None and new.last_shot.t_pts == rel.t_pts
+    already = new.last_shot is not None and new.last_shot.release_pts == rel.t_pts
     if already or vf.rim is None or len(new.ball_path) < SHOT_FIT_OBS:
         return
     if shot_path_passes_rim(new.ball_path, vf.rim):
         free_throw = new.last_free_throw_pts == rel.t_pts
         new.last_shot = ShotRecord(
             rel.t_pts, rel.track_id, rel.team, rel.zone, rel.feet_xy,
-            clock_running=new.clock_running, free_throw=free_throw,
+            clock_running=new.clock_running, free_throw=free_throw, release_pts=rel.t_pts,
         )
+
+
+def _shot_from_rim_entry(new: GameState, t: float) -> None:
+    """A ball that flies into the rim region is a shot even when the path fit never saw it
+    rise: the shooter's body often hides the release, which then gets dated at the last
+    hold before the ball vanished. The shot is dated from where the flight was first seen."""
+    rel, free = new.last_release, new.ball_free_since_pts
+    if rel is None or free is None:
+        return
+    if new.last_shot is not None and new.last_shot.release_pts == rel.t_pts:
+        return
+    if free < rel.t_pts or free - rel.t_pts > RIM_SHOT_RELEASE_GAP_S or t - free > RIM_SHOT_FLIGHT_S:
+        return
+    new.last_shot = ShotRecord(
+        free, rel.track_id, rel.team, rel.zone, rel.feet_xy,
+        clock_running=new.clock_running, free_throw=new.last_free_throw_pts == rel.t_pts,
+        release_pts=rel.t_pts,
+    )
 
 
 def _apply_rim_interaction(prev: GameState, new: GameState, vf, t: float) -> None:
@@ -347,6 +382,10 @@ def _apply_rim_interaction(prev: GameState, new: GameState, vf, t: float) -> Non
     was_inside = prev.ball is not None and prev.rim is not None and _inside(prev.ball.xy, rim_region(prev.rim))
     if inside and ri.entered_pts is None:
         ri.entered_pts = t
+        free = new.ball_free_since_pts
+        if free is not None and t - free <= RIM_SHOT_FLIGHT_S:
+            new.last_rim_flight_pts = free
+        _shot_from_rim_entry(new, t)
     if was_inside and not inside and ri.entered_pts is not None and ri.left_pts is None:
         ri.left_pts = t
     x, y = vf.ball.xy

@@ -51,6 +51,9 @@ class BroadcasterConfig(BaseModel):
     # The longest the score on the bug trails a shot's release. Shot, rebound and turnover
     # rules wait this long for the score change before they give up on a made shot.
     score_lag_s: float = 3.0
+    # The usual time from the ball dropping through the net to the digits changing. Dates a
+    # basket that only the scoreboard saw; None leaves it at the score change.
+    score_delay_s: float | None = None
 
 
 class LeagueConfig(BaseModel):

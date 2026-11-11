@@ -216,9 +216,14 @@ def observations(
     return out
 
 
-def drive(obs: list[Observation], league: LeagueConfig | None = None, score_lag_s: float | None = None) -> list[Event]:
+def drive(
+    obs: list[Observation], league: LeagueConfig | None = None, score_lag_s: float | None = None,
+    score_delay_s: float | None = None,
+) -> list[Event]:
     """Run observations through a fresh plug-in and engine; return every emitted event."""
-    kw = {} if score_lag_s is None else {"score_lag_s": score_lag_s}
+    kw: dict[str, float] = {} if score_lag_s is None else {"score_lag_s": score_lag_s}
+    if score_delay_s is not None:
+        kw["score_delay_s"] = score_delay_s
     plugin = BasketballPlugin(league or fixture_league("pba"), **kw)
     sink = MemorySink()
     engine = EventEngine(

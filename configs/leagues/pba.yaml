@@ -25,6 +25,8 @@ broadcasters:
     # 8.2 s after the release of a three; measured on four baskets of the 2026-10-30
     # quarterfinal.
     score_lag_s: 10.0
+    # Net to digits, measured on six baskets and free throws of the same game: 5.0 to 5.6 s.
+    score_delay_s: 5.3
     fields:
       away:       {x: 0.226, y: 0.806, w: 0.050, h: 0.044}
       home:       {x: 0.226, y: 0.850, w: 0.050, h: 0.044}

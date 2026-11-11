@@ -344,3 +344,45 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
 - `tests/golden` after this change: 1 passed, 2 failed. `pba_ros_cvg_vision` now passes the
   possession_start floor and fails on shot_attempt (2 / 5 / 3); `pba_ros_cvg_q1` camera
   accuracy is still 0.866 against 0.9.
+
+## Shots on real perception (2026-11-12)
+
+- Truth check against the video (0.1 s crops): the three free throws were dated about 3 s
+  late in the first draft, read back from the score change. Releases are at 7.3, 115.6 and
+  128.9 s (the third is shown from a top-down rim camera). The Rain or Shine jumper drafted
+  at 177.0 s is released at 175.6 s, bounces high off the rim at about 176.5 s, and Rain or
+  Shine no. 4 takes the rebound at about 177.5 s. Nine truth rows moved; the previous file
+  is `tmp/pba_ros_cvg_vision.truth.before2.jsonl` (untracked).
+- One Sports' net-to-digits delay holds for free throws too: rim crossings at 8.73 and
+  116.93 s, score changes at 14.0 and 122.25 s (5.3 s each); the third, about 130.1 to
+  135.25 s.
+- Why vision missed shots: the shooter's body hides the ball before the release, so the
+  release is dated at the last hold before it vanished (71.68 s for the 72.75 s shot,
+  174.82 s for the 175.6 s shot). The path fit only looks at the 1.5 s after the dated
+  release and needs the ball rising, so those flights never qualified.
+- Ruling: a detected ball that has been out of every player's reach and then enters the rim
+  region is a shot for the last release, when that release is at most 3 s before the
+  flight was first seen and the flight at most 2.5 s long. It is dated from the first
+  detection of the flight; a gap in detections longer than 0.75 s restarts the flight —
+  cost if wrong: a pass that crosses the rim region in the image (two rim widths) after a
+  flight counts as an attempt until a same-team hold retracts it.
+- Ruling: a +1 with no lane formation seen drafts free_throw_attempt and free_throw_made
+  (confidence 0.4, note "retroactive") instead of a shot_attempt with zone "ft": one point
+  is a free throw by rule — cost if wrong: none known; a scoreboard correction of +1 would
+  also come out as a free throw, as it came out as a shot before.
+- Ruling: a retroactive event is dated, best guess first, from the start of a flight seen
+  to reach the rim inside the scoreboard lag, else from the score change minus the
+  broadcaster's `score_delay_s` (new, None by default, 5.3 s for One Sports) minus 1 s of
+  flight, else at the score change as before — cost if wrong: on a feed whose delay varies
+  the estimate is off by that variation.
+- Scores on `pba_ros_cvg_vision` against the corrected truth (true / false / missed):
+  free_throw_attempt 3 / 0 / 0 and free_throw_made 3 / 0 / 0 (dated 7.63, 115.87, 128.95 s);
+  shot_attempt 4 / 1 / 1 (precision 0.80, recall 0.80; was 2 / 5 / 3); shot_made 3 / 1 / 1;
+  possession_start 5 / 1 / 1; score_change 7 / 0 / 0.
+- Left for shots: the 53.6 s layup is still dated 52.45 s (one false, one missed for
+  attempt and made). A synthetic play that reproduces it was not found, so nothing was
+  changed. The 175.6 s miss and its rebound (drafted at 177.37 s, home, offensive) cannot
+  confirm: the clip ends at 180 s, before the 10 s scoreboard lag is out.
+- Found on the way, not fixed: `shot_path_passes_rim` can pass on a path whose last point
+  is a catch far below the earlier points (the quadratic fit flips the sign of the linear
+  term). Seen on a synthetic play only.

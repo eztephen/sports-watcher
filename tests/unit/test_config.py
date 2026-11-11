@@ -43,3 +43,10 @@ def test_score_lag_defaults_to_three_seconds_and_one_sports_sets_ten():
 
     assert BroadcasterConfig(scoreboard_roi=Roi(x=0, y=0, w=1, h=1)).score_lag_s == 3.0
     assert load_league("pba").broadcasters["one_sports"].score_lag_s == 10.0
+
+
+def test_score_delay_is_unset_by_default_and_measured_for_one_sports():
+    from sports_watcher.config import BroadcasterConfig, Roi, load_league
+
+    assert BroadcasterConfig(scoreboard_roi=Roi(x=0, y=0, w=1, h=1)).score_delay_s is None
+    assert load_league("pba").broadcasters["one_sports"].score_delay_s == 5.3

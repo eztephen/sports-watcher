@@ -182,3 +182,66 @@ def test_slow_scoreboard_with_the_default_lag_backfills_a_second_attempt():
     ev = drive(_late_delta_make())
     assert len(confirmed(ev, "shot_attempt")) == 2
     assert retracted(ev, "shot_made")[0].reason == "ttl"
+
+
+def _shot_with_hidden_release(outcome: str):
+    """The shooter's body hides the ball for the first 80 % of the flight."""
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    flight = b.shot(1, S, "right", flight_s=1.0, outcome=outcome)
+    for vf in flight[:24]:
+        vf.ball = None
+    seen_at = flight[24].t_pts
+    for _ in range(50):  # then lost in the crowd under the basket
+        b.frame(S, None)
+    b.hold(3.0, S, holder_id=2)
+    return b, seen_at
+
+
+def test_shot_seen_only_on_its_way_down_is_an_attempt_dated_from_where_it_was_seen():
+    b, seen_at = _shot_with_hidden_release("make")
+    ev = drive(observations(b.frames, deltas={3.5: (2, 0)}))
+    att = provisional(ev, "shot_attempt")
+    assert len(att) == 1 and att[0].team == "home" and att[0].evidence.note != "retroactive"
+    assert abs(att[0].t_pts - seen_at) < 0.1
+    assert len(confirmed(ev, "shot_made")) == 1
+
+
+def test_missed_shot_seen_only_on_its_way_down_is_an_attempt_and_a_miss():
+    b, _ = _shot_with_hidden_release("miss")
+    ev = drive(observations(b.frames))
+    assert len(confirmed(ev, "shot_attempt")) == 1
+    assert len(provisional(ev, "shot_missed")) == 1
+
+
+FT = {1: ("home", (5.8, 7.5)), 6: ("away", (10.0, 7.5))}
+
+
+def test_one_point_without_a_lane_formation_is_a_free_throw_dated_from_the_flight():
+    # No court model, so no lane formation: the only signs are a ball that flew into the
+    # rim with the clock stopped and a +1 on a slow scoreboard five seconds later.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, FT, holder_id=1, rim_side="left", homography=False)
+    released_at = b.t
+    for vf in b.shot(1, FT, "left", outcome="make"):
+        vf.homography = None
+    for _ in range(round(6.0 * b.fps)):
+        b.frame(FT, None, rim_side="left", homography=False)
+    ev = drive(observations(b.frames, running=False, deltas={released_at + 5.3: (1, 0)}), score_lag_s=10.0)
+    att, made = confirmed(ev, "free_throw_attempt"), confirmed(ev, "free_throw_made")
+    assert len(att) == 1 and len(made) == 1 and att[0].team == made[0].team == "home"
+    assert abs(att[0].t_pts - released_at) < 0.3 and made[0].t_pts == att[0].t_pts
+    assert att[0].zone == "ft" and att[0].evidence.note == "retroactive" and att[0].confidence == 0.4
+    assert provisional(ev, "shot_attempt") == [] and provisional(ev, "shot_made") == []
+
+
+def test_one_point_nobody_saw_is_dated_back_by_the_broadcasters_score_delay():
+    b = PlayBuilder(Scene(L))
+    for _ in range(round(10.0 * b.fps)):
+        b.frame(FT, None, camera_hint="closeup")
+    obs = observations(b.frames, running=False, deltas={8.0: (1, 0)})
+    att = confirmed(drive(obs, score_lag_s=10.0, score_delay_s=5.3), "free_throw_attempt")
+    assert len(att) == 1 and abs(att[0].t_pts - (8.0 - 5.3 - 1.0)) < 0.05
+    att = confirmed(drive(obs, score_lag_s=10.0), "free_throw_attempt")
+    assert len(att) == 1 and abs(att[0].t_pts - 8.0) < 0.05  # no delay configured: the delta's time
+

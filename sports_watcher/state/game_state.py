@@ -45,6 +45,7 @@ class ShotRecord:
     court_xy: tuple[float, float] | None
     clock_running: bool = True  # the clock gate when the shot was recorded
     free_throw: bool = False  # released from a lane formation
+    release_pts: float | None = None  # the release it was recorded for (t_pts may be later)
 
 
 @dataclass
@@ -76,10 +77,13 @@ class GameState:
     homography_confidence: float = 0.0
     holder: Holder | None = None
     holder_candidate: tuple[int, float] | None = None  # track id, since pts
+    ball_free_since_pts: float | None = None  # start of the current run of detections out of every reach
+    ball_seen_pts: float | None = None  # last detection of the ball
     last_release: Release | None = None
     ball_path: list[tuple[float, float, float]] = field(default_factory=list)  # t, x, y
     rim_interaction: RimInteraction | None = None
     last_shot: ShotRecord | None = None
+    last_rim_flight_pts: float | None = None  # start of the last flight seen to reach the rim region
     lane_formation: LaneFormation | None = None
     free_throws_pending: int = 0
     possession_since_pts: float | None = None

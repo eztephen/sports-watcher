@@ -36,6 +36,7 @@ FT_ATTEMPT_CONFIDENCE = 0.6
 FT_MADE_CONFIDENCE = 0.9
 FT_MISSED_CONFIDENCE = 0.6
 FT_RESOLVE_S = 3.0
+ASSUMED_FLIGHT_S = 1.0  # release to net when only the score change is known
 ZONE_POINTS = {"two": 2, "three": 3}
 POINTS_ZONE = {1: "ft", 2: "two", 3: "three"}
 
@@ -91,10 +92,12 @@ class ShotOutcomeRule:
 
     name = "shot_outcome"
 
-    def __init__(self, score_lag_s: float = DELTA_WINDOW_S) -> None:
+    def __init__(self, score_lag_s: float = DELTA_WINDOW_S, score_delay_s: float | None = None) -> None:
         self._open: list[_OpenAttempt] = []
         self._seen: set[float] = set()
         self._lag = score_lag_s
+        self._delay = score_delay_s
+        self._flights_used: set[float] = set()
         self._miss_wait = max(MISS_AFTER_LEAVE_S, score_lag_s)  # a miss is not called before the lag is out
         self._open_max = max(OPEN_ATTEMPT_MAX_S, score_lag_s + MADE_TTL_MARGIN_S)
 
@@ -130,7 +133,7 @@ class ShotOutcomeRule:
             recent_ft = new.last_free_throw_pts is not None and obs.t_pts - new.last_free_throw_pts <= FT_RESOLVE_S
             if new.free_throws_pending or recent_ft:
                 return []  # FreeThrowRule owns it
-            return [self._retroactive_attempt(team, points, new, obs)]
+            return self._retroactive_free_throw(team, new, obs)
         att = next(
             (
                 a
@@ -209,11 +212,40 @@ class ShotOutcomeRule:
             )
         return out
 
+    def _retroactive_time(self, new: GameState, obs: Observation) -> float:
+        """When the shot behind a score change was released, best guess first: the start of
+        a flight seen to reach the rim inside the scoreboard lag, the broadcaster's usual
+        score delay, or the score change itself."""
+        flight = new.last_rim_flight_pts
+        if flight is not None and flight not in self._flights_used and 0.0 <= obs.t_pts - flight <= self._lag:
+            self._flights_used.add(flight)
+            return flight
+        if self._delay is not None:
+            return obs.t_pts - self._delay - ASSUMED_FLIGHT_S
+        return obs.t_pts
+
+    def _retroactive_free_throw(self, team: str, new: GameState, obs: Observation) -> list[EventDraft]:
+        """One point is a free throw whether or not the lane formation was seen."""
+        t = self._retroactive_time(new, obs)
+        return [
+            EventDraft(
+                type=type_,
+                team=team,
+                t_pts=t,
+                evidence=vision_evidence(new, obs, points=1, note="retroactive"),
+                confidence=RETROACTIVE_CONFIDENCE,
+                confirmer=always_confirm(),
+                court_xy=None,
+                zone="ft",
+            )
+            for type_ in ("free_throw_attempt", "free_throw_made")
+        ]
+
     def _retroactive_attempt(self, team: str, points: int, new: GameState, obs: Observation) -> EventDraft:
         return EventDraft(
             type="shot_attempt",
             team=team,
-            t_pts=obs.t_pts,
+            t_pts=self._retroactive_time(new, obs),
             evidence=vision_evidence(new, obs, points=points, note="retroactive"),
             confidence=RETROACTIVE_CONFIDENCE,
             confirmer=always_confirm(),
