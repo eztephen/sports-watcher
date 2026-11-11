@@ -115,3 +115,54 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   visible ball or rim, so the ball count there says nothing.
 - Full-frame ball confidences on main-camera frames are 0.25 to 0.5 at 512 px; the 384 px
   ball crop is what carries the ball once acquired.
+
+## First run on real perception (2026-11-11, branch feat/m1-real-perception)
+
+- Court keypoint model, first full run (6 epochs, batch 2 x accum 8, about 460 optimizer steps,
+  validation OKS mAP50:95 0.95): not usable. On its own validation images it places visible
+  points within about 10 px (640 px images), but slot i and slot i + 17 land on the same spot
+  with about 0.5 confidence each, whichever half of the court is in view, and the confidence
+  barely separates visible from invisible points (0.5 against 0.1 to 0.5). RF-DETR resizes the
+  pretrained 17-keypoint head to 33 by repeating rows, and 460 steps did not pull the copies
+  apart; OKS only scores labelled points, so the validation number hides it. A prototype
+  decoder that treats coincident slots as one point with two candidate names (the pairs are
+  not mirror images, so geometry can pick) fitted 52 of 60 validation images at a median 0.4 m,
+  but only 6 of 26 PBA main-camera frames and 18 of 30 frames of the NBA clip. The model is
+  kept aside as `models/_court_nba_6ep`; the watcher runs without a homography until a better
+  one exists. The prototype lives in `tmp/court_proto.py` and is not in the code base.
+- Ruling: the next court run uses batch 2 x accum 2 (four times the steps for the same GPU
+  time), 6 epochs. A second run with those settings reached OKS mAP50:95 0.94 after one epoch
+  (0.59 with accum 8) before Colab's free quota cut it off — cost if wrong: one more hour of T4.
+- Colab: a free account gave about 75 minutes of T4 time per day here. The notebook now clones
+  the public repo instead of taking an upload, and `files.download` in the package cell did
+  save `models.zip` to `~/Downloads` from the built-in browser pane.
+- Camera probe retrained with the detector features (player count, median player height;
+  homography inliers zero): held-out accuracy 0.780 (main 1.0, closeup 0.73, graphics 0.73,
+  replay 0.25) against 0.885 for the embedding-only probe, so the embedding-only probe stays
+  as `models/camera/probe.json` (the other is `probe.detector-features.json`). Golden camera
+  accuracy on `pba_ros_cvg_q1`: 0.866, under the 0.9 floor.
+- Perception on `pba_ros_cvg_vision` (5,400 frames, 0.38 s per frame without the court model):
+  the detector holds up: ball in 99 % of main-camera frames (detected or predicted), rim in
+  93 %, a median of 10 players. Tracks are short: 431 player tracks, median 29 frames.
+- Team assignment was the first failure: KMeans on SigLIP crop embeddings labelled 21,722
+  player observations home and 6,678 away and agreed with the jersey colour on 51 % of 1,098
+  sampled crops (PCA to 2 to 16 dimensions changed nothing). KMeans on the torso's median
+  Lab colour gives 14,560 home and 13,840 away and clean contact sheets. Ruling: the perceiver
+  clusters `jersey_features` (torso Lab) and no longer needs SigLIP for teams; SigLIP stays
+  for the camera probe — cost if wrong: kits of similar colour will need a richer feature.
+- Golden scores on `pba_ros_cvg_vision` after the team fix (tolerance 1 s): score_change 7/7;
+  possession_start 2 true, 17 false, 4 missed; shot_attempt 1 true, 9 false, 8 missed;
+  no rebounds or free throws. Causes seen so far:
+  - The holder jumps to a defender when the ball is occluded: the ball filter's predicted
+    position, and some detections, sit on the adjacent opponent for 0.2 to 2 s (51 to 53 s),
+    long enough for HOLD_S and the possession confirmer.
+  - Scrambles after a shot flip the holder several times a second (150 to 168 s).
+  - Seven of the nine false shot attempts are the score-derived backfills (confidence 0.4):
+    they carry the score-change time, 3 to 4 s after the release in the truth, and the three
+    free throws come out as shot attempts because lane formation needs the homography.
+  - Truth times for possession_start sit at the inbound or rebound; the rule dates a
+    possession from the first confirmed hold, up to 2.7 s away (55.3 against 58.0).
+- Next, in order: a court model from the corrected recipe; holder changes only on detected
+  ball observations and a longer hold before a possession flips; backfilled attempts dated
+  from the rim interaction or the last release instead of the score change; a pass over the
+  truth file against the video (it was drafted from contact sheets).
