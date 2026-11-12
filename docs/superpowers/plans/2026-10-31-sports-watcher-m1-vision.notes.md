@@ -392,3 +392,37 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   tests pass (`pba_ros_cvg_vision` with score_change 0.9, possession_start 0.8 and
   shot_attempt 0.8; `pba_ros_cvg_q1`), and only camera accuracy on `pba_ros_cvg_q1` fails
   (0.866 against 0.9). `tests/integration` passed in the run before.
+
+## Court keypoint model, third run (2026-11-12)
+
+- Colab's free quota was back. Run: 6 epochs, batch 2 x accum 2, about 9 to 12 minutes per
+  epoch on a T4 (54 minutes with the export). Validation OKS mAP50:95 per epoch: 0.939,
+  0.942, 0.944, 0.942, 0.943, 0.943. ONNX sha256 starts 6941c22b458b18a8. Kept aside as
+  `models/_court_nba_6ep_accum2`; `models/court` stays absent, so the watcher runs as
+  before.
+- The duplicated slots are still there: on 26 PBA main-camera frames, 3 to 6 pairs (slot i
+  and slot i + 17) sit on the same spot per frame, both at 0.5 to 0.65 confidence, and the
+  production `CourtMapper` gets no homography on any of the 26. Four times the optimizer
+  steps changed nothing, so the first diagnosis (too few steps to pull the copied head rows
+  apart) was wrong.
+- Corrected diagnosis: COCO keypoint training only supervises labelled points. A point of
+  the half court that is out of view carries v = 0 and gets neither a location nor a
+  visibility loss, so its slot keeps whatever its twin (the row it was copied from when
+  RF-DETR resized the 17-keypoint head to 33) predicts. In a right-half view the right-half
+  point is correct and the left-half twin repeats it; training longer cannot change that.
+  What did improve: slots with neither twin in view now read 0.0 to 0.03.
+- On a drawn frame (30 s) the right-half names are right where the markings are clear
+  (centre, the throw-in mark, the arc's apex, lane corners, the far corner) and wrong where
+  players cover them (the corner-three junction is placed 250 px off).
+- The pair-aware decoder prototype (`tmp/court_proto.py`: a coincident pair is one point
+  with two candidate names, geometry picks) on this model: a fit on 2 of 26 PBA frames at
+  an 8 px tolerance and 15 of 26 at 24 px, never more than 7 inliers, and the overlay at
+  30 s is visibly skewed (the baseline about 150 px off). Not usable for zones or the lane.
+- Ruling: no more Colab runs of this recipe — cost if wrong: none, the result is the same
+  twice. The open problem is PBA accuracy, with two parts: the twins (decoder, or training
+  with the out-of-view points labelled invisible) and an NBA-trained model on a FIBA court
+  with ten players standing on the markings.
+- Options, cheapest first: (1) fine-tune on 50 to 100 PBA main-camera frames labelled with
+  the same 33 points (the labelling is the cost); (2) a pair-aware decoder plus temporal
+  smoothing over the pan, accepted only above a stricter inlier count; (3) a line-based
+  court fit for the fixed main camera. Zones and lane formation wait on one of these.
