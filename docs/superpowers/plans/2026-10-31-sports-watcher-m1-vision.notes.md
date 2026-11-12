@@ -426,3 +426,33 @@ Verdict before the fix pass: not ready, 2 Critical and 7 Important findings, all
   the same 33 points (the labelling is the cost); (2) a pair-aware decoder plus temporal
   smoothing over the pan, accepted only above a stricter inlier count; (3) a line-based
   court fit for the fixed main camera. Zones and lane formation wait on one of these.
+
+## Court keypoints: decoder and fixed-camera spike (2026-11-12)
+
+Measured on raw keypoints of the third-run model for the whole vision clip, one frame in
+six (1800 samples, 1089 on the main camera; `tmp/court_dump.py` writes `tmp/court_kp.npz`).
+No production code changed; `models/court` is absent again.
+
+- Pair-aware decode (`tmp/court_spike.py`: coincident slots are one point with several
+  candidate names, RANSAC picks; a previous fit within 1 s names the twins first). Fits at
+  6 points minimum: 11 % of main frames at 8 px, 33 % at 12 px, 74 % at 24 px. The median
+  fit has 6 points and no frame reaches 8. The fitted court is not stable: the projected
+  court centre's second difference between samples 0.1 s apart has a median of 450 to 700
+  px. The temporal prior changes the fit rate by a few points and does not steady it.
+- Fixed camera centre with pan, tilt and focal length free per frame (`tmp/court_ptz.py`,
+  3 unknowns instead of 8). The fitter recovers 40 of 40 synthetic views with twins, 3 px
+  noise and a third wrong points (`tmp/court_ptz_syn.py`). On the clip, no camera centre
+  explains the points: over a 27-position grid the inliers at 15 px stay between 1.4 and
+  2.3 per frame out of about 9 point groups, and at the refined centre only 18 % of frames
+  reach 4 inliers.
+- Why, on one frame (90 s, left half in view, twins resolved by hand to the left names):
+  12 named points, and a homography agrees with 5 to 7 of them. The lane's near corners,
+  the spot under the hoop and the corner-three junction are 45 to 180 px from where the
+  other points put them, with either league's dimensions. The points look plausible to
+  the eye, and they are not mutually consistent to better than about a metre.
+- Ruling: the twins are a side issue. The NBA-trained model is not accurate enough on the
+  PBA floor for any decoder to recover a court, with or without time smoothing — cost if
+  wrong: zones and lane formation stay off until a better model exists, which is the
+  state today. Remaining options: fine-tune on 50 to 100 labelled PBA main-camera frames
+  (the fixed-camera fit above is then a ready, tested way to make 4 good points enough),
+  or a line-based fit that does not use this model.
