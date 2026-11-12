@@ -456,3 +456,29 @@ No production code changed; `models/court` is absent again.
   state today. Remaining options: fine-tune on 50 to 100 labelled PBA main-camera frames
   (the fixed-camera fit above is then a ready, tested way to make 4 good points enough),
   or a line-based fit that does not use this model.
+
+## Court keypoints: what the twin slots are, and the training fix (2026-11-12)
+
+- Read in rfdetr 1.12.0 (`models/heads/keypoints.py`, `models/lwdetr.py`,
+  `models/weights.py`): the "findable" loss is a BCE against v > 0 over every keypoint, so
+  out-of-view points are supervised. The third-run note's cause (no loss on out-of-view
+  points) is wrong.
+- The cause: loading the 17-keypoint checkpoint into a 33-keypoint model calls
+  `reinitialize_keypoint_head`, which resizes the per-keypoint tables (`keypoint_pos_embed`
+  and the query initializers) with `_resize_parameter_rows`, and that tiles rows. Slot
+  i + 17 starts as an exact copy of slot i. Raw output on a PBA frame confirms it: twins
+  give the same x, y and a findable logit of 0.0 to 0.6 (the BCE optimum for two
+  indistinguishable slots with targets 1 and 0 is 0.5), while slots with neither twin in
+  view give -4. The watcher's "0.5 to 0.65 confidence" was the sigmoid of those logits.
+  The tables sit in the decoder's reduced learning-rate group, and 6 epochs do not pull
+  the copies apart.
+- Fix in `training/train_court.py`: `install_untie_hook` wraps the resize and redraws
+  every row that copies an earlier one (mean and spread of the original rows), at
+  construction and again when `train()` reloads the weights. The script refuses to export
+  if the hook never fired. Not yet run on Colab — cost if wrong: one 55 minute run.
+- `training/datasets.py::merge_keypoint_sets` adds a small labelled set of the target
+  broadcast to the NBA set (keypoints reordered by name, images listed `repeat` times).
+  The labelling pack for Stephen is `data/labels/court_pba` (52 main-camera frames with
+  pre-labels, gitignored).
+- Also seen: `KeypointTrainConfig.skip_best_epochs` defaults to 10, so a 6-epoch run never
+  selects a best checkpoint by validation; which weights the export used was not checked.

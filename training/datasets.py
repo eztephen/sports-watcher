@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 PLAYER_CLASS_MAP: dict[str, str | None] = {
@@ -72,6 +73,66 @@ def remap_split_dirs(
         if path.is_file():
             out[split] = remap_coco(path, path, class_map, target_classes)
     return out
+
+
+def _keypoint_category(coco: dict) -> dict:
+    for cat in coco["categories"]:
+        if cat.get("keypoints"):
+            return cat
+    raise ValueError("no category with a keypoints list")
+
+
+def merge_keypoint_sets(base_dir: Path, extra_dir: Path, out_dir: Path, repeat: int = 1) -> dict[str, dict[str, int]]:
+    """Write ``out_dir`` as the base keypoint set plus the extra one, split by split.
+
+    The extra set (a few labelled frames of the target broadcast) must name the same
+    keypoints; its triplets are reordered to the base order and its images are listed
+    ``repeat`` times so a small set weighs against a large base. Images are copied."""
+    counts: dict[str, dict[str, int]] = {}
+    for split in SPLITS:
+        base_json = Path(base_dir) / split / COCO_FILE
+        if not base_json.is_file():
+            continue
+        coco = json.loads(base_json.read_text(encoding="utf-8"))
+        cat = _keypoint_category(coco)
+        names = [str(n) for n in cat["keypoints"]]
+        dst = Path(out_dir) / split
+        dst.mkdir(parents=True, exist_ok=True)
+        for im in coco["images"]:
+            shutil.copy2(base_json.parent / im["file_name"], dst / im["file_name"])
+        n_base, n_extra = len(coco["images"]), 0
+        extra_json = Path(extra_dir) / split / COCO_FILE
+        if extra_json.is_file():
+            extra = json.loads(extra_json.read_text(encoding="utf-8"))
+            extra_cat = _keypoint_category(extra)
+            extra_names = [str(n) for n in extra_cat["keypoints"]]
+            if sorted(extra_names) != sorted(names):
+                odd = sorted(set(extra_names) ^ set(names))
+                raise ValueError(f"the extra set's keypoints differ from the base set's: {odd}")
+            order = [extra_names.index(n) for n in names]
+            by_image: dict[int, list[dict]] = {}
+            for ann in extra["annotations"]:
+                if ann["category_id"] == extra_cat["id"]:
+                    by_image.setdefault(ann["image_id"], []).append(ann)
+            next_image = max((im["id"] for im in coco["images"]), default=-1) + 1
+            next_ann = max((a["id"] for a in coco["annotations"]), default=0) + 1
+            for im in extra["images"]:
+                shutil.copy2(extra_json.parent / im["file_name"], dst / im["file_name"])
+            n_extra = len(extra["images"])
+            for _ in range(repeat):
+                for im in extra["images"]:
+                    coco["images"].append({**im, "id": next_image})
+                    for ann in by_image.get(im["id"], []):
+                        kp = ann["keypoints"]
+                        reordered = [v for i in order for v in kp[3 * i : 3 * i + 3]]
+                        coco["annotations"].append(
+                            {**ann, "id": next_ann, "image_id": next_image, "category_id": cat["id"], "keypoints": reordered}
+                        )
+                        next_ann += 1
+                    next_image += 1
+        (dst / COCO_FILE).write_text(json.dumps(coco), encoding="utf-8")
+        counts[split] = {"base": n_base, "extra": n_extra, "repeat": repeat}
+    return counts
 
 
 def download_roboflow(workspace: str, project: str, version: int, fmt: str, dest: Path) -> Path:

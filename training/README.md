@@ -47,6 +47,26 @@ download_roboflow("roboflow-jvuqo", "basketball-court-detection-2", 19, "coco", 
    the zip's contents under `models/` on the Mac (or publish it as a GitHub release asset
    and run `scripts/download_models.py`).
 
+## Court model for a new broadcast (PBA)
+
+The NBA-trained court model is not accurate enough on the PBA floor (see the M1 notes), so
+it is trained on the NBA set plus labelled frames of the target broadcast. Label 50 to 100
+main-camera frames with the same 33 keypoints in a Roboflow keypoint project, export it as
+COCO, then on Colab:
+
+```
+from training.datasets import download_roboflow, merge_keypoint_sets
+download_roboflow("<workspace>", "<project>", <version>, "coco", Path("data/datasets/court_pba"))
+print(merge_keypoint_sets(Path("data/datasets/court"), Path("data/datasets/court_pba"), Path("data/datasets/court_merged"), repeat=8))
+!python -m training.train_court --dataset-dir data/datasets/court_merged --epochs 6 --batch 2 --grad-accum 2 --workers 2 --device cuda --out models/court
+```
+
+`repeat` lists each extra frame that many times so a small set weighs against the 1,220
+NBA frames. `train_court.py` also unties the keypoint slots RF-DETR creates by tiling its
+17-keypoint tables to 33 rows (slot i + 17 starts as a copy of slot i); it prints
+`untied tiled keypoint slots: ...` when the weights load and refuses to export if that
+never happened.
+
 A second detector size for the benchmark: rerun step 4 with `--model nano --resolution 384
 --out models/detector-nano` and compare with `scripts/bench_perceiver.py`.
 
