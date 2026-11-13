@@ -482,3 +482,26 @@ No production code changed; `models/court` is absent again.
   pre-labels, gitignored).
 - Also seen: `KeypointTrainConfig.skip_best_epochs` defaults to 10, so a 6-epoch run never
   selects a best checkpoint by validation; which weights the export used was not checked.
+
+## Court keypoint model, fourth run: the untie fix works (2026-11-13)
+
+- Colab T4, NBA set only, 6 epochs, batch 2 x accum 2, `train_court.py` at e1c7607 (written
+  into the Colab checkout, sha256 checked). The hook fired at construction and again when
+  `train()` reloaded the weights: 16 rows redrawn in each of `decoder.keypoint_pos_embed`,
+  `keypoint_query_initializer.queries` and `keypoint_query_initializer_enc.queries`.
+  Validation OKS mAP50:95 per epoch: 0.938, 0.944, 0.946, 0.942, 0.942, 0.944 (the same as
+  the tied model, so the NBA score never showed the defect). About 13 minutes per epoch.
+  ONNX sha256 starts 444c461819d6097b; kept as `models/_court_nba_6ep_untied`, `models/court`
+  absent.
+- Twins: gone. On the 26 PBA frames the confident points read 0.97 to 1.00 (was 0.5 to
+  0.65), out-of-view slots read 0.00, and coincident pairs number 0 on 25 frames and 1 on
+  one. The frame at 90 s carries left-half names only.
+- PBA accuracy: unchanged. Production `CourtMapper` gets a homography on 2 of 26 frames
+  (6 inliers each). At 90 s, 11 points at confidence 1.0, and 5 to 6 agree with one
+  homography: the free-throw line's midpoint sits on a player 114 px off the line through
+  its two ends, and the arc's apex, the near lane corner and the sideline mark are 60 to
+  700 px off. Confidence no longer separates right from wrong points.
+- Ruling: the untie fix stays in the recipe; the PBA labels are still required — cost if
+  wrong: none, nothing ships without a fit that passes.
+- The labelling pack's pre-labels were rebuilt with this model (single names, 8 to 21
+  points per frame); the earlier ones are in `data/labels/court_pba_prelabels_v1.json`.
