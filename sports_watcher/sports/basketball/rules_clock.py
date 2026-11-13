@@ -6,7 +6,7 @@ from sports_watcher.config import LeagueConfig
 from sports_watcher.sports.base import EventDraft, Observation
 from sports_watcher.sports.basketball.confirmers import (
     base_confidence,
-    clock_stopped_until,
+    off_main_and_stopped_until,
     possession_within,
     vision_evidence,
 )
@@ -27,7 +27,8 @@ TIP_CONFIDENCE = 0.6
 
 
 class TimeoutRule:
-    """Clock stopped and the camera off main for 20 s, once per departure from main."""
+    """Clock stopped and the camera off main for 20 s, once per departure from main;
+    confirmed when both still hold at 30 s."""
 
     name = "timeout"
 
@@ -48,7 +49,7 @@ class TimeoutRule:
                 t_pts=left,
                 evidence=vision_evidence(new, obs, note="camera_off_main"),
                 confidence=TIMEOUT_CONFIDENCE,
-                confirmer=clock_stopped_until(left + TIMEOUT_CONFIRM_S),
+                confirmer=off_main_and_stopped_until(left, left + TIMEOUT_CONFIRM_S),
                 ttl_s=TIMEOUT_TTL_S,
             )
         ]

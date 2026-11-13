@@ -39,6 +39,19 @@ def test_timeout_retracted_when_play_resumes():
     assert len(retracted(ev, "timeout")) == 1 and confirmed(ev, "timeout") == []
 
 
+def test_timeout_retracted_when_the_camera_returns_with_the_clock_still_stopped():
+    # A shooting foul: 22 s of close-ups, then the main camera on the free throws while the
+    # clock stays stopped. Play is being set up; a timeout keeps the camera away.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, P, holder_id=1)
+    for _ in range(22 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    b.hold(10.0, P, holder_id=1)
+    ev = drive(observations(b.frames, running=False))
+    assert len(provisional(ev, "timeout")) == 1
+    assert len(retracted(ev, "timeout")) == 1 and confirmed(ev, "timeout") == []
+
+
 def test_no_timeout_while_clock_runs_during_a_closeup():
     b = PlayBuilder(Scene(L))
     for _ in range(25 * 30):

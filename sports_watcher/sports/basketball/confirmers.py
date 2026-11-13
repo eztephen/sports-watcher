@@ -200,10 +200,16 @@ def holder_or_late_delta(team: Team, since_pts: float, score_before: Score) -> C
     return confirm
 
 
-def clock_stopped_until(deadline_pts: float) -> Confirmer:
+def off_main_and_stopped_until(left_pts: float, deadline_pts: float) -> Confirmer:
+    """A timeout: the clock stays stopped and the camera stays away from the main view it
+    left at ``left_pts`` until the deadline. The main camera coming back earlier means play
+    is being set up (free throws after a foul, an inbound), which is no timeout."""
+
     def confirm(draft: EventDraft, state: GameState, obs: Observation) -> Verdict:
         if state.clock_running:
             return "retracted:clock_running"
+        if state.camera_left_main_pts != left_pts:
+            return "retracted:camera_back_on_main"
         if obs.t_pts >= deadline_pts:
             return "confirmed"
         return "pending"

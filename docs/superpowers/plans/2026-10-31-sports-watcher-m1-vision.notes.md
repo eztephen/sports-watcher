@@ -537,3 +537,18 @@ No production code changed; `models/court` is absent again.
 - Seen, not touched: a confirmed `timeout` at 94.17 s (note camera_off_main) with no
   timeout in the truth, and a retracted one at 125.07 s. Whether a timeout happened at 94 s
   has not been checked against the video.
+
+## The timeout at 94 s (2026-11-13)
+
+- Checked on contact sheets (92 to 152 s, every 4 s): no timeout. A shooting foul stops the
+  clock at 4:49, close-ups run to about 114 s, the main camera shows the two free throws
+  (116 and 129 s, with a top-down replay between), close-ups again to the inbound at 150 s.
+  The truth file is right.
+- The rule drafted at 20 s off main with the clock stopped and confirmed at 30 s on the
+  clock alone, although the main camera was back at 116 s. Ruling: the confirmer
+  (`off_main_and_stopped_until`) also retracts when the camera returns to main before the
+  30 s mark — cost if wrong: a real timeout during which the director cuts to a wide shot
+  that reads as main is retracted.
+- On the clip both timeout drafts (94.17 and 125.07 s) are now retracted with
+  `camera_back_on_main`; every other score is unchanged. 258 unit tests, ruff clean,
+  integration passes, golden 7 of 8 (camera accuracy on `pba_ros_cvg_q1`, 0.866).
