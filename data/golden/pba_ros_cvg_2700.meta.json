@@ -1,0 +1,12 @@
+{
+  "league": "pba",
+  "broadcaster": "one_sports",
+  "home": "Rain or Shine",
+  "away": "Converge",
+  "home_color": "white",
+  "away_color": "navy",
+  "ocr_every_n_frames": 15,
+  "checks": {},
+  "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 00:27:00-00:28:00",
+  "notes": "A timeout from start to end: a stats graphic, the Converge huddle and close-ups; no main-camera play and no score change. The watcher should emit no score, possession or shot event."
+}

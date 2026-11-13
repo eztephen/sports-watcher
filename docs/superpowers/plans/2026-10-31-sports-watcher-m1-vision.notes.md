@@ -552,3 +552,45 @@ No production code changed; `models/court` is absent again.
 - On the clip both timeout drafts (94.17 and 125.07 s) are now retracted with
   `camera_back_on_main`; every other score is unchanged. 258 unit tests, ruff clean,
   integration passes, golden 7 of 8 (camera accuracy on `pba_ros_cvg_q1`, 0.866).
+
+## Second clip, third quarter (2026-11-13)
+
+- New footage from the same stream: `pba_ros_cvg_q3` (01:35:00 to 01:38:30, Q3 7:39 to
+  5:31, the teams have changed ends, 13 shots and two free throws) and `pba_ros_cvg_2700`
+  (27:00 to 28:00, one whole minute inside a timeout). Truth drafted from contact sheets;
+  no rule was tuned on either clip and neither has floors in `checks` yet.
+- `pba_ros_cvg_2700`: the watcher emits one timeout at 0.0 s, provisional then confirmed,
+  and nothing else.
+- `pba_ros_cvg_q3`, first run (true / false / missed, tolerance 1 s): free_throw_attempt
+  2 / 0 / 0, free_throw_made 2 / 0 / 0, shot_made 4 / 0 / 0, shot_attempt 5 / 2 / 6,
+  score_change 5 / 1 / 1, possession_start 3 / 7 / 6, rebound 0 / 1 / 3, shot_missed
+  0 / 0 / 4, timeout 0 / 1 / 0, turnover 0 / 1 / 0. Retraction rate 0.24.
+- Every made basket and free throw is found with the right team and within 0.7 s. The
+  misses are where it breaks. Checked on frames, the truth stands on each of these:
+  - Team of the ball holder. At 41.9 to 47.7 s and 193.1 to 199.6 s Rain or Shine has the
+    ball and the holder's track is labelled away (a white shirt in a crowd, on a track id
+    a second or two old); at 200.8 s the Converge rebounder is labelled home. That gives
+    the two shots credited to the wrong team (46.73, 197.50 s), a confirmed home turnover
+    at 41.57 s that never happened, and most of the false possession starts. Overlay of
+    the cached labels at 42.0 and 197.0 s: nine players right, the ball handler wrong, and
+    referees labelled as players of either team. This is perception (team per track), the
+    rules did what the labels said.
+  - No holder, no shot. From 13.8 to 17.7 s nobody is the holder, so the three at 15.4 s
+    has no release and no attempt; the same after made baskets, where the new possession
+    is found 5 to 8 s late (117.0 in truth against 123.83, 124.5 against 129.57, 178.0
+    against 186.23).
+  - Sponsor banner over the score bug, 51 to 98 s: the clock is unreadable, the clock gate
+    is shut, the layup and two putbacks at 52.4 to 54.6 s draft nothing. Expected with the
+    gate as specified.
+  - Timeout at 58.63 s, confirmed, false: a foul with a player down, close-ups for 32 s
+    with the clock stopped at 6:44, so the camera does not return to main before the 30 s
+    mark. The second stoppage (144.23 s, 23 s long) is drafted and retracted.
+  - score_change 77 to 79: readable at 36.5 s, solid at 37.0 s, emitted at 38.75 s. A +2
+    animation covers the digits from 34.5 s and the camera is on a close-up until 37.2 s.
+    The other five are 0.25 to 0.75 s after the truth.
+- Build note: two cache builders ran against the same file for an hour (a stalled waiter
+  loop had started one). `CachedPerceiver._load` keeps the last record per frame and all
+  of those came from the builder that finished; the completion marker reports 6301 frames.
+- Not done: any fix. Candidates, in the order the clip suggests: a team label that a
+  track keeps by vote over its life and across re-identification, referees out of the
+  player class, a longer or camera-independent test for timeouts, the late score read.

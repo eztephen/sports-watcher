@@ -1,0 +1,21 @@
+{
+  "league": "pba",
+  "broadcaster": "one_sports",
+  "home": "Rain or Shine",
+  "away": "Converge",
+  "home_color": "white",
+  "away_color": "navy",
+  "ocr_every_n_frames": 15,
+  "checks": {},
+  "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 01:35:00-01:38:30 (the first 210 s of the 01:35:00-01:39:00 download)",
+  "notes": "Third quarter, 7:39 to 5:31, Converge 77-70 to 85-73. The teams have changed ends: Rain or Shine attacks the right basket, Converge the left. Main-camera play at 0 to 33 s, 36 to 58 s, 90 to 97 s (free throws), 100 to 117 s, 120 to 125 s, 129 to 143 s, 167 to 179 s and 183 to 210 s; close-ups elsewhere, with a foul and an injury stoppage at 141 to 167 s. A sponsor banner covers the score bug from about 51 to 98 s.",
+  "truth_status": "drafted from contact sheets on 2026-11-13 (1 s sheets for the whole clip, 0.25 to 0.5 s sheets around each shot). Checked again on frames the same day where the watcher disagreed: the shots at 15.4, 46.3 and 197.6 s are Rain or Shine's, the 77 to 79 change is first readable at 36.5 s (solid at 37.0 s, a +2 animation covers the digits from 34.5 s), and 56 to 90 s is a foul with a player down, no timeout. Not yet checked frame by frame at the rim; no rule was tuned on this clip. No floors are set: the first run scored score_change 5 of 6 (the 36.5 s change is emitted at 38.75 s), see the M1 notes.",
+  "truth_uncertain": [
+    "score_change is dated at the first frame the new digits are readable; the 79 to 80 change happens under the sponsor banner and is first visible at 98.5 s",
+    "the possession running when the clip starts (Rain or Shine, shot clock at 18) has no possession_start in the truth",
+    "52.4, 53.6 and 54.6 s are a Converge layup and two putbacks under the left basket, read from 0.5 s sheets (+/-0.5 s); the last one draws the foul, so the scorer's sheet has no attempt for it. The rebounds between them are not listed",
+    "zones of the missed shots (15.4, 46.3, 137.2, 197.6 s) are read by eye",
+    "197.6 s: a Rain or Shine drive that misses; the shot clock shows 14 at 200 s (an offensive rebound or a tip) and 24 at 201 s with Converge running the other way. The rebound is not listed and the Converge start at 200.7 s is +/-1 s",
+    "after the stoppage Converge inbounds at about 167.5 s; that restart is not listed as a possession_start because Converge already had the ball from 139.1 s"
+  ]
+}
