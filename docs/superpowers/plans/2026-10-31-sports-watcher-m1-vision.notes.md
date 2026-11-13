@@ -505,3 +505,35 @@ No production code changed; `models/court` is absent again.
   wrong: none, nothing ships without a fit that passes.
 - The labelling pack's pre-labels were rebuilt with this model (single names, 8 to 21
   points per frame); the earlier ones are in `data/labels/court_pba_prelabels_v1.json`.
+
+## The 53.6 s layup and the stray turnover (2026-11-13)
+
+- The layup's date: from 51.9 to 53.3 s the detector reports a still blob 250 px from the
+  driver (confidence 0.3 to 0.65) while the real ball is hidden in his hands, so the state
+  records a release at 52.45 s. The ball is detected again in his box from 53.33 s, rising
+  8 to 20 px a frame, which the rising guard keeps from making a holder. The trajectory fit
+  passes at 53.70 s over a path of blob points plus the real rise, and dates the shot at the
+  release.
+- Fix: `_apply_release_touch` notes when the detected ball is back inside the releaser's
+  reach after having been seen out of it (`release_left_reach`, `release_touch_pts`), and a
+  shot from the trajectory fit is dated at that touch when there is one. The synthetic drive
+  only reaches the rim-entry path (the fit needs the footage's larger rim box), so the fit
+  branch is tested by setting the touch on the state one frame before the fit records.
+- That moved the shot after its rim entry (53.67 s, the rim area is large on a layup), and
+  the attempt's confirmer wanted an entry after the shot time: the attempt was retracted
+  when the scorer picked the ball up at 54.9 s while its shot_made confirmed. The confirmer
+  now counts the entry from the release the shot was recorded for.
+- The turnover drafted at 156.03 s was the ball going back after the 0.37 s blip at
+  154.83 s. Ruling: a turnover needs the losing team seen with the ball in hand 0.5 s or
+  more into its possession (the same `holding` test as `team_holds`) — cost if wrong: a
+  strip within half a second of a catch drafts no turnover for the second team.
+- Scores on `pba_ros_cvg_vision` (true / false / missed): shot_attempt 5 / 0 / 0 (was
+  4 / 1 / 1), shot_made 4 / 0 / 0 (was 3 / 1 / 1), free throws 3 / 0 / 0, possession_start
+  5 / 1 / 1, score_change 7 / 0 / 0; one turnover draft (154.83 s, retracted) instead of two.
+  The layup is dated 53.70 s against 53.6. rebound and shot_missed 0 / 0 / 1 as before (the
+  clip ends inside the scoreboard lag).
+- Suites: 257 unit tests pass, ruff clean, `tests/integration` passes, `tests/golden` 7 of
+  8 (camera accuracy on `pba_ros_cvg_q1` 0.866 against 0.9, unchanged).
+- Seen, not touched: a confirmed `timeout` at 94.17 s (note camera_off_main) with no
+  timeout in the truth, and a retracted one at 125.07 s. Whether a timeout happened at 94 s
+  has not been checked against the video.

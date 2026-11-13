@@ -210,6 +210,32 @@ def test_brief_hold_then_a_loose_ball_is_retracted_and_the_first_team_plays_on()
     assert len([e for e in provisional(ev, "possession_start") if e.team == "home"]) == 1
 
 
+def test_ball_returning_after_a_brief_hold_is_one_turnover_draft_not_two():
+    # Same play: the defender's third of a second drafts a turnover that is retracted.
+    # The ball going back is not a turnover by the defender's team, which never had it.
+    loose = ((20.0, 3.0), 1.0)
+    b = PlayBuilder(Scene(L))
+    b.hold(1.0, P, holder_id=1)
+    b.hold(0.35, P, holder_id=2)
+    for _ in range(24):
+        b.frame(P, loose)
+    b.hold(5.0, P, holder_id=3)
+    ev = drive(observations(b.frames))
+    drafts = provisional(ev, "turnover")
+    assert [e.team for e in drafts] == ["home"]
+    assert [e.supersedes for e in retracted(ev, "turnover")] == [drafts[0].id]
+    assert confirmed(ev, "turnover") == []
+
+
+def test_steal_and_steal_back_after_a_real_hold_are_two_turnovers():
+    b = PlayBuilder(Scene(L))
+    b.hold(1.0, P, holder_id=1)
+    b.hold(0.8, P, holder_id=2)
+    b.hold(5.0, P, holder_id=1)
+    ev = drive(observations(b.frames))
+    assert [e.team for e in provisional(ev, "turnover")] == ["home", "away"]
+
+
 def test_steal_and_steal_back_after_a_real_hold_are_two_possessions():
     b = PlayBuilder(Scene(L))
     b.hold(1.0, P, holder_id=1)

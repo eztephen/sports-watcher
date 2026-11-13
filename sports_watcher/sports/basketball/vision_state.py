@@ -216,6 +216,7 @@ def apply_vision(prev: GameState, new: GameState, obs: Observation, league: Leag
     _apply_ball_free(new, vf, t)
     _apply_possession(new)
     _apply_release(prev, new, vf, t, league)
+    _apply_release_touch(new, vf, t)
     _apply_ball_path(new, vf, t)
     _apply_rim_interaction(prev, new, vf, t)
     _apply_lane(prev, new, league, t)
@@ -334,6 +335,28 @@ def _apply_release(prev: GameState, new: GameState, vf, t: float, league: League
         new.last_free_throw_pts = prev.t_pts
     new.ball_path = [(t, vf.ball.xy[0], vf.ball.xy[1])]
     new.rim_interaction = RimInteraction()
+    new.release_left_reach, new.release_touch_pts = False, None
+
+
+def _apply_release_touch(new: GameState, vf, t: float) -> None:
+    """Note when the ball is seen back in the releaser's reach after it had left it.
+
+    A drive can read as a release a second before the shot: the detector loses the ball in
+    the dribbler's hands and reports something else, then finds it again in his hands on
+    the way up, where a rising ball makes no holder. The shot left his hands at that later
+    touch, not at the release."""
+    rel = new.last_release
+    if rel is None or vf.ball is None or vf.ball.source != "detected":
+        return
+    if t <= rel.t_pts or t - rel.t_pts > RIM_SHOT_RELEASE_GAP_S:
+        return
+    if new.last_shot is not None and new.last_shot.release_pts == rel.t_pts:
+        return
+    tr = _track(vf.tracks, rel.track_id)
+    if tr is None or not _inside(vf.ball.xy, grown(tr.box, BOX_GROW)):
+        new.release_left_reach = True
+    elif new.release_left_reach:
+        new.release_touch_pts = t
 
 
 def _apply_ball_path(new: GameState, vf, t: float) -> None:
@@ -349,8 +372,10 @@ def _apply_ball_path(new: GameState, vf, t: float) -> None:
         return
     if shot_path_passes_rim(new.ball_path, vf.rim):
         free_throw = new.last_free_throw_pts == rel.t_pts
+        touch = new.release_touch_pts
         new.last_shot = ShotRecord(
-            rel.t_pts, rel.track_id, rel.team, rel.zone, rel.feet_xy,
+            rel.t_pts if touch is None else max(rel.t_pts, touch),
+            rel.track_id, rel.team, rel.zone, rel.feet_xy,
             clock_running=new.clock_running, free_throw=free_throw, release_pts=rel.t_pts,
         )
 

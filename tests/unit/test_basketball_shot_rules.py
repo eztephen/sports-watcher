@@ -245,3 +245,22 @@ def test_one_point_nobody_saw_is_dated_back_by_the_broadcasters_score_delay():
     att = confirmed(drive(obs, score_lag_s=10.0), "free_throw_attempt")
     assert len(att) == 1 and abs(att[0].t_pts - 8.0) < 0.05  # no delay configured: the delta's time
 
+
+
+def test_attempt_dated_after_its_release_is_confirmed_by_a_rim_entry_in_between():
+    # A layup: the shot is dated from the shooter's last touch, by which time the ball is
+    # already in the rim area. The rim entry belongs to the release the shot was recorded
+    # for, so the attempt stands and the scorer picking the ball up does not retract it.
+    from sports_watcher.sports.basketball.rules_shots import ShotAttemptRule
+    from sports_watcher.state.game_state import GameState, Holder, RimInteraction, ShotRecord
+
+    b = PlayBuilder(Scene(L))
+    obs = observations(b.hold(0.1, {1: ("home", (22.0, 7.5))}, holder_id=1))[-1]
+    shot = ShotRecord(2.0, 1, "home", "two", None, release_pts=1.0)
+    state = GameState(
+        clock_running=True, last_shot=shot, rim_interaction=RimInteraction(entered_pts=1.9),
+        possession="away", possession_since_pts=2.6, holder=Holder(1, "home", 2.6),
+    )
+    (draft,) = ShotAttemptRule()(GameState(), state, obs)
+    assert draft.t_pts == 2.0
+    assert draft.confirmer(draft, state, obs) == "confirmed"

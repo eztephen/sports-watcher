@@ -173,14 +173,25 @@ class TurnoverRule:
     def __init__(self, league: LeagueConfig, score_lag_s: float = DELTA_WINDOW_S) -> None:
         self._lag = score_lag_s
         self._full = float(league.shot_clock_s)
+        self._held: tuple[float, bool] | None = None  # the possession watched, and whether it was held
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
+        # A team loses the ball only if it was seen with it in hand: a possession that is a
+        # defender's box over the ball for a moment (its start is retracted) cannot turn it over.
+        lost_was_held = self._held is not None and self._held == (prev.possession_since_pts, True)
+        since_now = new.possession_since_pts
+        if since_now is not None:
+            if self._held is None or self._held[0] != since_now:
+                self._held = (since_now, False)
+            if holding(new, obs.t_pts):
+                self._held = (since_now, True)
         if not new.clock_running:
             return []
         if (
             prev.possession in ("home", "away")
             and new.possession in ("home", "away")
             and new.possession != prev.possession
+            and lost_was_held
             and not _attempt_in_possession(new, prev.possession, prev.possession_since_pts)
         ):
             since = new.possession_since_pts if new.possession_since_pts is not None else obs.t_pts

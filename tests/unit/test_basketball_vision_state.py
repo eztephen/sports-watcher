@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from sports_watcher.sports.basketball.plugin import BasketballPlugin
 from sports_watcher.state.game_state import GameState
 from tests.helpers.leagues import fixture_league
@@ -223,3 +225,55 @@ def test_possession_after_a_made_basket_is_not_flipped_by_the_next_label():
     b.hold(0.5, players, holder_id=3)
     assert _states(observations(b.frames))[-1].possession == "home"
 
+
+
+def test_shot_is_dated_from_the_shooters_last_touch_when_the_ball_came_back_to_him():
+    # A drive: the detector loses the ball in the dribbler's hands and reports a still blob
+    # on the floor for 0.6 s (a release as far as the state can tell), then finds the ball
+    # again in his hands on the way up. The shot leaves his hands then, not 0.8 s earlier.
+    b = PlayBuilder(Scene(L))
+    players = {1: ("home", (22.0, 7.5)), 2: ("away", (16.0, 12.0))}
+    b.hold(1.0, players, holder_id=1)
+    for _ in range(18):
+        b.frame(players, ((19.5, 7.5), 1.0))  # the blob: behind him, out of everyone's reach
+    for i in range(6):
+        b.frame(players, ((22.0, 7.5), 1.0 + 0.2 * i))  # back in his hands, rising
+    last_touch = b.frames[-1].t_pts
+    b.shot(1, players, "right", flight_s=0.6)
+    states = _states(observations(b.frames))
+    touched = next(st for st in states if st.t_pts == last_touch)
+    assert touched.release_touch_pts == last_touch  # seen back in the releaser's reach
+    shot = states[-1].last_shot
+    assert shot is not None and shot.team == "home" and shot.track_id == 1
+    assert abs(shot.t_pts - last_touch) <= 0.2
+    assert shot.release_pts is not None and shot.release_pts < 1.1  # still the same release
+
+
+def test_shot_keeps_the_release_time_when_the_ball_never_came_back():
+    b = PlayBuilder(Scene(L))
+    players = {1: ("home", (22.0, 7.5)), 2: ("away", (16.0, 12.0))}
+    b.hold(1.0, players, holder_id=1)
+    release = b.frames[-1].t_pts
+    b.shot(1, players, "right", flight_s=0.8)
+    states = _states(observations(b.frames))
+    shot = states[-1].last_shot
+    assert shot is not None and abs(shot.t_pts - release) <= 0.05
+    assert all(st.release_touch_pts is None for st in states)
+
+
+def test_trajectory_shot_takes_the_later_touch_as_its_time():
+    # The trajectory fit dates a shot at the release. When the ball was seen back in the
+    # releaser's reach after that release, the later touch is when it left his hands.
+    b = PlayBuilder(Scene(L))
+    players = {1: ("home", (22.0, 7.5)), 2: ("away", (16.0, 12.0))}
+    b.hold(1.0, players, holder_id=1)
+    b.shot(1, players, "right", flight_s=0.8)
+    obs = observations(b.frames)
+    plugin, state, i = BasketballPlugin(L), GameState(), 0
+    while state.last_shot is None:
+        before, state, i = state, plugin.update_state(state, obs[i]), i + 1
+    assert state.last_shot.t_pts == state.last_release.t_pts  # recorded by the fit, at the release
+    touch = before.last_release.t_pts + 0.1
+    touched = replace(before, release_touch_pts=touch, release_left_reach=True)
+    shot = plugin.update_state(touched, obs[i - 1]).last_shot
+    assert shot is not None and shot.t_pts == touch and shot.release_pts == before.last_release.t_pts

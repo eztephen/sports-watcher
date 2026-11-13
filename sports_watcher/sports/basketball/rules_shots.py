@@ -65,7 +65,11 @@ class ShotAttemptRule:
                 t_pts=shot.t_pts,
                 evidence=vision_evidence(new, obs, track_id=shot.track_id, detector_confidence=conf),
                 confidence=base_confidence(ATTEMPT_CONFIDENCE, new),
-                confirmer=rim_or_delta(shot.team, shot.t_pts, new.score()),
+                # the rim entry counts from the release: a layup dated at the shooter's last
+                # touch is already in the rim area by then
+                confirmer=rim_or_delta(
+                    shot.team, shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts), new.score()
+                ),
                 player=PlayerRef(track_id=shot.track_id, confidence=conf),
                 court_xy=shot.court_xy,
                 zone=shot.zone,

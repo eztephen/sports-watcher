@@ -84,6 +84,8 @@ class GameState:
     rim_interaction: RimInteraction | None = None
     last_shot: ShotRecord | None = None
     last_rim_flight_pts: float | None = None  # start of the last flight seen to reach the rim region
+    release_left_reach: bool = False  # the ball was seen out of the releaser's reach since the release
+    release_touch_pts: float | None = None  # last time it was seen back in his reach after that
     lane_formation: LaneFormation | None = None
     free_throws_pending: int = 0
     possession_since_pts: float | None = None
