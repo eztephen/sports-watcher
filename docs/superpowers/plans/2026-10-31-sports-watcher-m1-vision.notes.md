@@ -676,3 +676,47 @@ No production code changed; `models/court` is absent again.
   sha1). A Q3 rebuild drops from 55 minutes to under 3 once recorded; all four golden
   clips are recorded. Re-running the tracker over cached track boxes is not a valid
   shortcut; this is.
+
+## Third clip, fourth quarter, unseen (2026-11-14)
+
+- `pba_ros_cvg_q4`: the stream at 02:07:00 to 02:10:00, Q4 7:31 to 5:50, 105-105 to
+  Converge 110-109, then a timeout from the dead ball at 101 s to the end. Truth (31
+  events: 8 shots, 4 makes, 4 score changes, 7 possession starts, 3 rebounds, 1 timeout)
+  drafted from sheets before the watcher ran on it. After the first run two rebound times
+  were corrected on 0.25 s sheets (68.7 s, drafted 69.8; 82.8 s, drafted 83.2). No floors.
+- Scores, true / false / missed, the same truth for both; the baseline is the code before
+  the kit change (f683560), its cache rebuilt from the same recorded ONNX outputs:
+
+  | | baseline | committed (26af625) |
+  |---|---|---|
+  | score_change | 4 / 0 / 0 | 4 / 0 / 0 |
+  | shot_attempt | 6 / 3 / 2 | 7 / 4 / 1 |
+  | shot_made | 4 / 0 / 0 | 3 / 1 / 1 |
+  | possession_start | 2 / 5 / 5 | 3 / 4 / 4 |
+  | rebound | 1 / 1 / 2 | 1 / 1 / 2 |
+  | shot_missed | 0 / 0 / 4 | 0 / 0 / 4 |
+  | timeout | 0 / 1 / 1 | 0 / 1 / 1 |
+  | turnover | 0 / 1 / 0 | 0 / 1 / 0 |
+
+  On an unseen clip the kit change is about neutral: it finds the blocked layup at
+  98.5 s and dates the possession after the 35.1 s basket right, and it loses the make at
+  35.1 s (hung on a duplicate attempt at 37.27 s) and adds a team-less duplicate attempt
+  at 17.43 s. The Q3 gain did not carry over in size.
+- What is wrong on this clip in both runs, checked on frames:
+  - Duplicate attempts: a team-less twin of the real shot (2.02 s; 17.43 s with the new
+    code), a second attempt on the same miss (68.13 s), an attempt after the dead ball
+    (101.63 s).
+  - The 92.3 s layup is under a sponsor banner (87 to 92.5 s): clock unreadable, gate
+    shut, nothing drafted. Same cause as 51 to 98 s on Q3.
+  - Timeout found but dated 123.77 s; the dead ball is at 101.0 s. The replays at 112 to
+    126 s read as the main camera and restart the off-main timer.
+  - After a made basket the watcher starts the possession when the other team picks the
+    ball up (19.5, 50.5 s); the truth dates the inbound pass (21.0, 56.0 s). A convention
+    to settle, not a perception error. The start after the first basket is found 6 to 10 s
+    late (close-up until 10 s).
+  - The Converge rebound at 82.8 s is found at 84.7 s (possession) and 86.37 s (rebound).
+  - A false turnover confirmed at 95.5 s on a Rain or Shine fast break.
+  - No shot_missed on any clip so far (0 of 9 across Q3 and Q4).
+- Build note: the scoring run was started while the cache builder was still writing and
+  truncated its file (`CachedPerceiver` rebuilds an incomplete cache). Rebuilt from the
+  memo. `tmp/clip_run.py` should refuse to run without the completion marker.

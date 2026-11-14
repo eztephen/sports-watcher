@@ -1,0 +1,23 @@
+{
+  "league": "pba",
+  "broadcaster": "one_sports",
+  "home": "Rain or Shine",
+  "away": "Converge",
+  "home_color": "white",
+  "away_color": "navy",
+  "ocr_every_n_frames": 15,
+  "checks": {},
+  "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 02:07:00-02:10:00",
+  "notes": "Fourth quarter, 7:31 to 5:50, 105-105 to Converge 110-109. Rain or Shine attacks the right basket, Converge the left. Main-camera play at 0 to 5.5 s, 10 to 21.5 s, 27 to 39.5 s, 43 to 51.5 s and 56 to 102.5 s. A dead ball at 5:50 (101 s), close-ups to 112 s, replays to 126 s, then the Converge huddle of a timeout to the end of the clip. A sponsor banner covers the score bug at 3.5 to 9.5 s and 87 to 92.5 s.",
+  "truth_status": "drafted from contact sheets on 2026-11-14 (1 s sheets to 112 s, 0.25 s sheets around every shot, 0.5 s scoreboard strips), before the watcher was run on the clip. No rule and no perception setting was tuned on this clip. No floors are set. After the first run two times were corrected on 0.25 s sheets: the Rain or Shine rebound is at 68.7 s (drafted as 69.8 from 1 s sheets; #3 has the ball overhead at 68.75) and the Converge rebound at 82.8 s (drafted as 83.2). Nothing else was changed.",
+  "truth_uncertain": [
+    "the possession running when the clip starts (Converge, shot clock at 11) has no possession_start in the truth",
+    "score_change is dated at the first frame the new digits are readable: the 105 to 108 change happens under the sponsor banner and is first visible at 10.0 s; the others come out of a +2 animation, faint for half a second (23.5, 43.0, 54.0 s)",
+    "possession starts after made baskets are the inbound pass, read from 1 s sheets (+/-1 s); the one at 5.5 s is during a close-up and is a guess between 4.5 and 9 s; Converge takes about 8 s to inbound after the basket at 48 s (shot clock starts at 56.5 s)",
+    "46.75 s: a Rain or Shine driver goes up and drops the ball off; listed as one attempt by the receiver at 48.0 s (the shot clock runs through, so nothing touched the rim before it)",
+    "67.4 s: Converge layup off the rim; the shot clock shows 14 at 70 s and 24 at 71 s, so there may be a Converge tip before Rain or Shine's #3 takes the rebound at 68.7 s. No second attempt is listed",
+    "98.5 s: a Rain or Shine layup blocked at the rim, the ball goes out off Converge at 100.5 s and Rain or Shine keeps it (shot clock stays at 18); listed as an attempt and a miss, no rebound",
+    "the timeout is dated at the dead ball (101.0 s); which team called it and when the referee granted it cannot be seen",
+    "zones are read by eye"
+  ]
+}

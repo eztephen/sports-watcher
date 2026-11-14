@@ -1,0 +1,31 @@
+{"t_pts": 2.0, "type": "shot_attempt", "team": "away", "zone": "three"}
+{"t_pts": 2.0, "type": "shot_made", "team": "away", "points": 3}
+{"t_pts": 5.5, "type": "possession_start", "team": "home"}
+{"t_pts": 10.0, "type": "score_change", "team": "away", "points": 3}
+{"t_pts": 17.4, "type": "shot_attempt", "team": "home", "zone": "two"}
+{"t_pts": 17.4, "type": "shot_made", "team": "home", "points": 2}
+{"t_pts": 21.0, "type": "possession_start", "team": "away"}
+{"t_pts": 23.5, "type": "score_change", "team": "home", "points": 2}
+{"t_pts": 35.1, "type": "shot_attempt", "team": "away", "zone": "two"}
+{"t_pts": 35.1, "type": "shot_made", "team": "away", "points": 2}
+{"t_pts": 39.0, "type": "possession_start", "team": "home"}
+{"t_pts": 43.0, "type": "score_change", "team": "away", "points": 2}
+{"t_pts": 48.0, "type": "shot_attempt", "team": "home", "zone": "two"}
+{"t_pts": 48.0, "type": "shot_made", "team": "home", "points": 2}
+{"t_pts": 54.0, "type": "score_change", "team": "home", "points": 2}
+{"t_pts": 56.0, "type": "possession_start", "team": "away"}
+{"t_pts": 67.4, "type": "shot_attempt", "team": "away", "zone": "two"}
+{"t_pts": 68.3, "type": "shot_missed", "team": "away"}
+{"t_pts": 68.7, "type": "rebound", "team": "home"}
+{"t_pts": 68.7, "type": "possession_start", "team": "home"}
+{"t_pts": 81.0, "type": "shot_attempt", "team": "home", "zone": "two"}
+{"t_pts": 82.4, "type": "shot_missed", "team": "home"}
+{"t_pts": 82.8, "type": "rebound", "team": "away"}
+{"t_pts": 82.8, "type": "possession_start", "team": "away"}
+{"t_pts": 92.3, "type": "shot_attempt", "team": "away", "zone": "two"}
+{"t_pts": 93.0, "type": "shot_missed", "team": "away"}
+{"t_pts": 93.8, "type": "rebound", "team": "home"}
+{"t_pts": 93.8, "type": "possession_start", "team": "home"}
+{"t_pts": 98.5, "type": "shot_attempt", "team": "home", "zone": "two"}
+{"t_pts": 98.8, "type": "shot_missed", "team": "home"}
+{"t_pts": 101.0, "type": "timeout", "team": "unknown"}
