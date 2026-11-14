@@ -137,6 +137,12 @@ where both scores jumped at once needs a fully agreeing vote window.
   "https://www.youtube.com/watch?v=TyYUFM0h-6c"
 ```
 
+The other golden clips come from the same stream (`TyYUFM0h-6c`): `pba_ros_cvg_vision`
+(00:28:00-00:31:00), `pba_ros_cvg_2700` (00:27:00-00:28:00, a timeout),
+`pba_ros_cvg_q3` (01:35:00-01:38:30) and `pba_ros_cvg_q4` (02:07:00-02:10:00); and
+`pba_gin_smb_q1` from `rsMWF6QhFKQ` (00:34:40-00:37:40). Each clip's `.meta.json` names
+its source, the team colours, its floors and how its truth was drafted.
+
 ## Event lifecycle
 
 Every event is appended, never edited. A rule emits a `provisional` event at once; a

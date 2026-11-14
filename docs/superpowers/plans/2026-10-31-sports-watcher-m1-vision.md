@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status, 2026-11-14:** executed. What it delivers, what is parked (the PBA court model, so zones and the lane formation) and the constants that moved are in the section "State of M1 at 2026-11-14" at the end of `2026-10-31-sports-watcher-m1-vision.notes.md`. The text below is the plan as written.
+
 **Goal:** The watcher sees players, ball, rim, teams, court position and camera state, and emits provisional, confirmed and retracted `possession_start`, `shot_attempt`, `shot_made`, `shot_missed`, `free_throw_*`, `rebound`, `turnover`, `timeout` and `tip_off` events, with the firsts read model answering first possession, tip-off winner, first shot attempt and the possession list.
 
 **Architecture:** A `Perceiver` turns each frame into a `VisionFrame` (tracks with teams and court feet positions, ball, rim, homography, camera hint); three implementations share the interface: ONNX models, a per-clip JSONL cache, and a scripted one for tests. A sport-agnostic camera-state tracker fills `Observation.camera_state`. The basketball plug-in's `update_state` derives geometry facts (clock gate, holder, release, rim interaction, lane formation) into `GameState`; rule classes draft events from those facts with confirmers that run on later observations, through the unchanged M0 engine. Training runs on Colab (Mac MPS fallback) and ships ONNX weights into gitignored `models/`.

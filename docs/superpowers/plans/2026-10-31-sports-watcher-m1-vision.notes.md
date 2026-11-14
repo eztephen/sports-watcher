@@ -1035,3 +1035,48 @@ No production code changed; `models/court` is absent again.
   speed (one detector pass, a GPU), not scheduling.
 - Suites: 294 unit tests, ruff clean. Golden and integration not rerun: file sources do
   not take the new path.
+
+## State of M1 at 2026-11-14 (commit be3df0d)
+
+What M1 delivers, measured. Scores are true / false / missed at a 1 s tolerance on file
+replays with real perception; the sections above have the detail behind each line.
+
+| | vision (Q1, tuned on) | Q3 (tuned on) | Q4 (unseen for rules) |
+|---|---|---|---|
+| score_change | 7 / 0 / 0 | 5 / 1 / 1 | 4 / 0 / 0 |
+| shot_made | 4 / 0 / 0 | 4 / 0 / 0 | 4 / 0 / 0 |
+| shot_attempt | 5 / 0 / 0 | 8 / 2 / 3 | 8 / 2 / 0 |
+| free_throw_attempt, _made | 3 / 0 / 0 | 2 / 0 / 0 | none in the clip |
+| timeout | none, none confirmed | none, none confirmed | 1 / 0 / 0 |
+| shot_missed | 0 / 0 / 1 | 1 / 4 / 3 | 3 / 2 / 1 |
+| possession_start | 5 / 1 / 1 | 5 / 7 / 4 | 4 / 3 / 3 |
+| rebound | 0 / 0 / 1 | 1 / 1 / 2 | 1 / 1 / 2 |
+| turnover | none | 0 / 2 / 0 | 0 / 1 / 0 |
+
+- Solid, with golden floors: score_change, shot_made, shot_attempt, free throws, timeout.
+- Usable: shot_missed (false ones follow false or wrong-team attempts).
+- Weak: possession_start, rebound, turnover. Six wrong possession changes on Q3 and Q4
+  have six causes (one label, a referee as a player, a false ball, two dead-ball touches,
+  a replay read as the main camera); two Q4 starts are 1.1 to 1.4 s late.
+- Second game (`pba_gin_smb_q1`, another arena and kits, nothing tuned): score_change
+  4 / 0 / 0, a shot_made for the right team on each, no false timeout. Its vision events
+  are unscored (no truth for them).
+- tip_off: no clip contains one; rule tested on synthetic plays only.
+- Live, on the M-series laptop: perception 531 ms a frame (1.9 a second). The scoreboard
+  side works live (score changes, the makes tied to them, timeouts); vision events do not
+  form at that rate.
+- Parked: the PBA court keypoint model. No zones, no lane formation, no `court_xy` on PBA
+  footage; free throws come from the one-point score change.
+- Failing: `test_golden_camera_state[pba_ros_cvg_q1]`, 0.866 against 0.9; needs more
+  labelled replay footage for the camera probe.
+- Constants that moved from the plan's Global Constraints: timeout confirm 45 s (TTL
+  30 s), dated from the clock's last change; scoreboard lag 10 s and delay 5.3 s for One
+  Sports; a miss is called after `max(3, lag)` and confirmed at once; live OCR every 0.2 s
+  of stream time; team from `KitAssigner` (palette of 5, fit at 200 samples) when both
+  colours are given; the tracker refuses a detection of the other kit.
+- Dev tools left in `tmp/` (untracked): `perceive_memo.py` (ONNX outputs memoised, a
+  cache rebuild in 3 minutes), `clip_run.py`, `rescore.py`, the trace scripts, and
+  `kitset/` (300 hand-labelled crops).
+- Open, by expected return: vision speed for live (one detector pass, a GPU); truth for
+  shots and possessions on the second game, drafted by a person; the camera probe; the
+  court model when someone can label points; the small possession causes above.

@@ -4,7 +4,9 @@ Sports Watcher is a Python 3.12 service that reads a basketball broadcast and em
 game events. Spec: `docs/superpowers/specs/2026-10-31-sports-watcher-v1-design.md` plus
 the M1 addendum `docs/superpowers/specs/2026-10-31-sports-watcher-m1-vision-design.md`.
 Plans: `docs/superpowers/plans/2026-10-31-sports-watcher-m0-skeleton.md` (done),
-`docs/superpowers/plans/2026-10-31-sports-watcher-m1-vision.md` (vision).
+`docs/superpowers/plans/2026-10-31-sports-watcher-m1-vision.md` (vision, executed).
+Where M1 stands, with scores per clip, is the last section of
+`docs/superpowers/plans/2026-10-31-sports-watcher-m1-vision.notes.md`.
 
 ## Commands
 
@@ -38,7 +40,8 @@ cache in `data/cache/`, and take a few minutes).
   `Homography`), `perceiver.py` (`Perceiver` protocol, `ScriptedPerceiver`,
   `build_perceiver`), `cache.py` (per-clip JSONL cache), `onnx_perceiver.py` (the real
   one), `detector.py` + `ball.py` (RF-DETR ONNX, ball crop), `tracker.py` (OC-SORT style
-  tracker, ball filter), `team.py` (SigLIP crops → KMeans → operator colours),
+  tracker with a kit gate, ball filter), `team.py` (`KitAssigner`: kit-coloured torso
+  pixels against the operator's colours; `TeamAssigner` clusters when no colours are given),
   `court.py` (keypoints → homography), `camera_state.py` (probe + hysteresis tracker),
   `models.py` (manifests, `ModelSet`), `offline.py` (cache builder).
 - `sports_watcher/state/`, `sports_watcher/sports/` — `GameState`, the `SportPlugin`
@@ -51,7 +54,9 @@ cache in `data/cache/`, and take a few minutes).
 - `sports_watcher/events/` — `Event` model, `EventEngine` (provisional → confirmed /
   retracted, 4 s TTL), sinks, `firsts.fold_firsts`.
 - `sports_watcher/watcher.py` — one game: source → OCR → engine → sinks, with
-  reconnects for URL sources (`stream_gap` events).
+  reconnects for URL sources (`stream_gap` events). Live sources read the scoreboard
+  every 0.2 s of stream time and run perception on a worker thread; files stay
+  frame for frame.
 - `sports_watcher/api/` — FastAPI job API and websocket.
 - `sports_watcher/replay/`, `sports_watcher/eval/` — replay rig, truth files, scoring.
 - `configs/leagues/*.yaml` — court dimensions, period lengths, broadcaster scoreboard boxes
@@ -70,5 +75,10 @@ cache in `data/cache/`, and take a few minutes).
 - Vision rules draft only while the game clock runs (OCR clock changed within 2 s);
   free throws and the tip-off are the exceptions. Without weights the watcher behaves
   exactly as M0.
+- The PBA court model is parked: no zones, lane formation or `court_xy` on PBA footage.
+  Scores in the notes are file replays; live on a laptop CPU only the scoreboard side
+  keeps up (perception runs at about 2 frames a second).
+- A change to perception changes the cache version: rebuild the caches of the golden
+  clips before scoring, and never score a clip whose cache lacks its completion marker.
 - Test-first: write the failing test, watch it fail, then implement. Rules are tested on
   synthetic plays from `tests/helpers/vision.py`, never on footage.
