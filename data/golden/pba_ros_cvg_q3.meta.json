@@ -6,10 +6,16 @@
   "home_color": "white",
   "away_color": "navy",
   "ocr_every_n_frames": 15,
-  "checks": {},
+  "checks": {
+    "score_change": 0.8,
+    "shot_made": 0.9,
+    "shot_attempt": 0.7,
+    "free_throw_attempt": 0.9,
+    "free_throw_made": 0.9
+  },
   "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 01:35:00-01:38:30 (the first 210 s of the 01:35:00-01:39:00 download)",
   "notes": "Third quarter, 7:39 to 5:31, Converge 77-70 to 85-73. The teams have changed ends: Rain or Shine attacks the right basket, Converge the left. Main-camera play at 0 to 33 s, 36 to 58 s, 90 to 97 s (free throws), 100 to 117 s, 120 to 125 s, 129 to 143 s, 167 to 179 s and 183 to 210 s; close-ups elsewhere, with a foul and an injury stoppage at 141 to 167 s. A sponsor banner covers the score bug from about 51 to 98 s.",
-  "truth_status": "drafted from contact sheets on 2026-11-13 (1 s sheets for the whole clip, 0.25 to 0.5 s sheets around each shot). Checked again on frames the same day where the watcher disagreed: the shots at 15.4, 46.3 and 197.6 s are Rain or Shine's, the 77 to 79 change is first readable at 36.5 s (solid at 37.0 s, a +2 animation covers the digits from 34.5 s), and 56 to 90 s is a foul with a player down, no timeout. Not yet checked frame by frame at the rim; no rule was tuned on this clip. No floors are set: the first run scored score_change 5 of 6 (the 36.5 s change is emitted at 38.75 s), see the M1 notes.",
+  "truth_status": "drafted from contact sheets on 2026-11-13 (1 s sheets for the whole clip, 0.25 to 0.5 s sheets around each shot). Checked again on frames the same day where the watcher disagreed: the shots at 15.4, 46.3 and 197.6 s are Rain or Shine's, the 77 to 79 change is first readable at 36.5 s (solid at 37.0 s, a +2 animation covers the digits from 34.5 s), and 56 to 90 s is a foul with a player down, no timeout. Not yet checked frame by frame at the rim; no rule was tuned on this clip. No floors are set: the first run scored score_change 5 of 6 (the 36.5 s change is emitted at 38.75 s), see the M1 notes. Floors set on 2026-11-14 a little under the scores of commit f430254, for the event types that are solid; possession_start, rebound, shot_missed and turnover have none.",
   "truth_uncertain": [
     "score_change is dated at the first frame the new digits are readable; the 79 to 80 change happens under the sponsor banner and is first visible at 98.5 s",
     "the possession running when the clip starts (Rain or Shine, shot clock at 18) has no possession_start in the truth",

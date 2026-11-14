@@ -17,7 +17,10 @@ from sports_watcher.events.model import EventStatus
 
 GOLDEN_DIR = Path(__file__).resolve().parents[2] / "data" / "golden"
 DEFAULT_CHECKS = {"score_change": 0.9}
-VISION_TYPES = {"possession_start", "shot_attempt", "shot_made", "shot_missed", "rebound", "turnover"}
+VISION_TYPES = {
+    "possession_start", "shot_attempt", "shot_made", "shot_missed", "rebound", "turnover",
+    "timeout", "free_throw_attempt", "free_throw_made", "free_throw_missed",
+}
 MADE_WINDOW_S = 3.0
 
 

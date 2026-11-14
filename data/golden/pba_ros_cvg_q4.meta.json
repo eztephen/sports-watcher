@@ -6,10 +6,15 @@
   "home_color": "white",
   "away_color": "navy",
   "ocr_every_n_frames": 15,
-  "checks": {},
+  "checks": {
+    "score_change": 0.9,
+    "shot_made": 0.9,
+    "shot_attempt": 0.75,
+    "timeout": 0.9
+  },
   "source": "One Sports YouTube, LIVE: RAIN OR SHINE vs CONVERGE | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | OCT 30, 2026 (TyYUFM0h-6c), section 02:07:00-02:10:00",
   "notes": "Fourth quarter, 7:31 to 5:50, 105-105 to Converge 110-109. Rain or Shine attacks the right basket, Converge the left. Main-camera play at 0 to 5.5 s, 10 to 21.5 s, 27 to 39.5 s, 43 to 51.5 s and 56 to 102.5 s. A dead ball at 5:50 (101 s), close-ups to 112 s, replays to 126 s, then the Converge huddle of a timeout to the end of the clip. A sponsor banner covers the score bug at 3.5 to 9.5 s and 87 to 92.5 s.",
-  "truth_status": "drafted from contact sheets on 2026-11-14 (1 s sheets to 112 s, 0.25 s sheets around every shot, 0.5 s scoreboard strips), before the watcher was run on the clip. No rule and no perception setting was tuned on this clip. No floors are set. After the first run two times were corrected on 0.25 s sheets: the Rain or Shine rebound is at 68.7 s (drafted as 69.8 from 1 s sheets; #3 has the ball overhead at 68.75) and the Converge rebound at 82.8 s (drafted as 83.2). Nothing else was changed.",
+  "truth_status": "drafted from contact sheets on 2026-11-14 (1 s sheets to 112 s, 0.25 s sheets around every shot, 0.5 s scoreboard strips), before the watcher was run on the clip. No rule and no perception setting was tuned on this clip. No floors are set. After the first run two times were corrected on 0.25 s sheets: the Rain or Shine rebound is at 68.7 s (drafted as 69.8 from 1 s sheets; #3 has the ball overhead at 68.75) and the Converge rebound at 82.8 s (drafted as 83.2). Nothing else was changed. Floors set on 2026-11-14 a little under the scores of commit f430254, for the event types that are solid; possession_start, rebound, shot_missed and turnover have none.",
   "truth_uncertain": [
     "the possession running when the clip starts (Converge, shot clock at 11) has no possession_start in the truth",
     "score_change is dated at the first frame the new digits are readable: the 105 to 108 change happens under the sponsor banner and is first visible at 10.0 s; the others come out of a +2 animation, faint for half a second (23.5, 43.0, 54.0 s)",
