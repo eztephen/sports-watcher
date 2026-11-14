@@ -893,3 +893,25 @@ No production code changed; `models/court` is absent again.
   the first putback (real on the floor, the truth lists no misses for that scramble).
 - Suites: 289 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
   accuracy on `pba_ros_cvg_q1`, as before).
+
+## Court model parked (2026-11-14)
+
+- Decision (Stephen): the PBA court keypoint model is parked. Shot zones and the lane
+  formation stay off on PBA footage; points come from the scoreboard as now.
+- Why the labels did not happen: the 52 frames in `data/labels/court_pba` need pixel-level
+  points. Reading coordinates off images gives 10 to 20 px at best; one frame fitted by
+  hand with overlay checks ended 50 to 80 px off on the three-point arc and the far
+  sideline, and polishing that fit on the line mask (Powell on four anchor points) moved
+  it onto the wrong lines. `scipy.optimize.least_squares` does not move on this cost at
+  all (status 1 after one evaluation).
+- What the frames showed about the floor, for whoever picks this up: the PBA court has a
+  four-point arc outside the three-point line (27 ft from the basket), the free-throw
+  circle is a solid pink sponsor disc with the lower half of the circle dashed, and a
+  no-charge arc. A court line model for fitting needs all three; the NBA-trained keypoint
+  model has seen none of them.
+- Left in place, untracked: `data/labels/court_pba/click_tool.html` (click four to six
+  named points per frame, live overlay), `EXAMPLE_do_not_upload.png` (six points named on
+  the tool's second frame), `tmp/court_clicks_to_coco.py` (clicks to COCO), and the
+  fitting scratch `tmp/court_fit*.py`, `tmp/court_seed.py`.
+- To resume: clicks from a person through the tool, or full labels in Roboflow; then
+  `merge_keypoint_sets` and the Colab recipe in `training/README.md`.
