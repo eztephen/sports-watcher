@@ -1,0 +1,16 @@
+{
+  "league": "pba",
+  "broadcaster": "one_sports",
+  "home": "San Miguel",
+  "away": "Barangay Ginebra",
+  "home_color": "white",
+  "away_color": "red",
+  "ocr_every_n_frames": 15,
+  "checks": {},
+  "source": "One Sports YouTube, LIVE: BRGY. GINEBRA vs SAN MIGUEL | PBA SEASON 50 GOVERNORS' CUP QUARTERFINALS | NOV 10, 2026 (rsMWF6QhFKQ), section 00:34:40-00:37:40",
+  "notes": "A second game: Ynares Center (different floor paint), Ginebra in red, San Miguel in white. First quarter, 3:38 to 1:03, Ginebra 22-11 to 24-18. Close-ups at 26 to 29 s and 74 to 79 s, a dead ball at 1:33 (129 to 137 s) followed by replays to 150 s; no timeout. Sponsor graphics cover the score bug at 12 to 18 s and 69 to 75 s.",
+  "truth_status": "SCORE CHANGES ONLY, read from a 1 s scoreboard strip on 2026-11-14 (first second with the new digits readable, minus 0.5 s; +/-0.5 s). Shots, possessions and rebounds are NOT in the truth: at the sheet sizes used they could not be dated without leaning on the scoreboard lag, which is what the watcher itself uses. Vision events on this clip are reported in the notes file as counts and checked against the score changes, not scored.",
+  "truth_uncertain": [
+    "the 11 to 13 change is first readable at 80.0 s; a +2 animation shows from 77 s, after the sponsor graphic lifts at 76 s"
+  ]
+}

@@ -955,3 +955,30 @@ No production code changed; `models/court` is absent again.
   count). No other event type changed.
 - Suites: 291 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
   accuracy on `pba_ros_cvg_q1`, as before).
+
+## Floors on the newer clips; a second game (2026-11-14)
+
+- Floors (precision and recall) set a little under the scores of f430254, for the solid
+  types only: Q4 score_change 0.9, shot_made 0.9, shot_attempt 0.75, timeout 0.9; Q3
+  score_change 0.8, shot_made 0.9, shot_attempt 0.7, free throws 0.9; `pba_ros_cvg_2700`
+  timeout 0.9. `tests/golden` skips timeout and free-throw checks without vision, like the
+  other vision types. All five clips pass (5e5a3c9).
+- `pba_gin_smb_q1`: Barangay Ginebra (red, away) against San Miguel (white, home), the
+  10 November quarterfinal at Ynares Center, stream 00:34:40 to 00:37:40, Q1 3:38 to 1:03.
+  Another floor, other kits, the same score bug. Nothing was tuned on it.
+- Truth: the four score changes only, from a 1 s scoreboard strip. Shots and possessions
+  could not be dated from sheets at this camera distance without using the scoreboard
+  lag, which the watcher uses too; they are not scored.
+- Result: score_change 4 / 0 / 0 (30.75, 80.0, 105.0, 160.0 s against 30.5, 79.5, 104.5,
+  159.5). Each has a confirmed shot_made for the right team before it: 23.93 s away,
+  73.7 s home, 97.83 s home, 150.53 s home (three of the four retroactive, dated from the
+  score delay). No timeout drafted during the 22 s dead ball and replays at 129 to 150 s.
+- Not scored, for the record: 11 attempts (one retracted), 4 misses, 10 possession
+  starts (one retracted), 2 confirmed rebounds, 1 confirmed turnover. The possession
+  changes after the misses at 43.6, 92.4, 121.3 and 169.3 s sit where the shot clock is
+  seen to reset (44 to 47, 93 to 94, 123, 172 to 173 s). Player labels in the cache:
+  away 22220, home 13218, unknown 8704; the imbalance is not explained (red in the
+  stands?).
+- Reading: the scoreboard side and the made baskets carry over to another venue and
+  other colours. Whether attempts, misses and possessions do is not known; that needs
+  truth drafted by someone who can watch the clip at speed.
