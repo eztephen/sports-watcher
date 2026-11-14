@@ -423,3 +423,65 @@ def test_a_basket_long_after_an_attempt_is_not_that_attempts_make():
     made = provisional(ev, "shot_made")
     assert made and all(m.t_pts > basket_at - 2.0 for m in made)
     assert len(confirmed(ev, "shot_missed")) == 1  # the first shot is still a miss
+
+
+def test_a_shot_whose_release_was_never_recorded_is_credited_to_the_last_holder():
+    # Q4, 92.3 s: the ball handler drives, the ball brushes a defender's box for two frames
+    # (so the hand-off to the air is no release) and then flies to the rim.
+    from tests.helpers.vision import HOLD_M
+
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    for _ in range(2):
+        b.frame(S, (S[2][1], HOLD_M))
+    shot_at = b.t
+    b.shot(1, S, "right", outcome="miss")
+    b.hold(5.0, S, holder_id=2)
+    ev = drive(observations(b.frames))
+    att = confirmed(ev, "shot_attempt")
+    assert len(att) == 1 and att[0].team == "home"
+    assert 0.0 <= att[0].t_pts - shot_at < 0.5
+
+
+def test_a_tip_after_a_miss_is_a_second_attempt():
+    # Q3, 53.6 s: the miss comes down into a teammate's hands under the rim and goes
+    # straight back up. Nobody holds it long enough to be the holder.
+    from sports_watcher.sports.basketball.geometry import basket_xy
+    from tests.helpers.vision import RIM_HEIGHT_M
+
+    rim = basket_xy(L, "right")
+    under = (rim[0] + 0.4, rim[1])
+    V = {**S, 4: ("home", under)}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, V, holder_id=1)
+    for vf in b.shot(1, V, "right", outcome="miss")[-5:]:
+        vf.ball.source = "predicted"  # lost among the bodies on its way down
+    b.frame(V, (under, 1.55))  # seen once in the tipper's hands
+    tip_at = b.t
+    for h in (2.4, 2.7, 3.0, 3.2):  # up beside the rim, not through it
+        b.frame(V, (under, h))
+    for h in (3.35, 3.4, 3.3):
+        b.frame(V, (rim, h))
+    for h in (3.0, 2.6, 2.1, 1.6):
+        b.frame(V, (under, h))
+    b.hold(5.0, V, holder_id=2)
+    ev = drive(observations(b.frames))
+    att = confirmed(ev, "shot_attempt")
+    assert len(att) == 2 and {a.team for a in att} == {"home"}
+    assert abs(att[1].t_pts - tip_at) < 0.3
+    assert RIM_HEIGHT_M > 3.0  # the tip above peaks over the rim
+
+
+def test_a_rebound_carried_down_is_not_a_second_attempt():
+    from sports_watcher.sports.basketball.geometry import basket_xy
+
+    rim = basket_xy(L, "right")
+    under = (rim[0] + 0.4, rim[1])
+    V = {**S, 4: ("away", under)}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, V, holder_id=1)
+    b.shot(1, V, "right", outcome="miss")
+    for h in (1.9, 2.0, 2.05, 2.0, 1.8, 1.5, 1.2):  # caught overhead, brought down
+        b.frame(V, (under, h))
+    b.hold(5.0, V, holder_id=4)
+    assert len(provisional(drive(observations(b.frames)), "shot_attempt")) == 1

@@ -86,6 +86,9 @@ class GameState:
     last_rim_flight_pts: float | None = None  # start of the last flight seen to reach the rim region
     release_left_reach: bool = False  # the ball was seen out of the releaser's reach since the release
     release_touch_pts: float | None = None  # last time it was seen back in his reach after that
+    last_held: tuple[int, Team, float] | None = None  # track, team, last time someone was the holder
+    ball_touch: tuple[int, Team, float] | None = None  # the player whose reach the ball was last seen in
+    rim_low_y: float | None = None  # lowest the ball has been (largest image y) since it reached the rim
     lane_formation: LaneFormation | None = None
     free_throws_pending: int = 0
     possession_since_pts: float | None = None

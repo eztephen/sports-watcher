@@ -45,6 +45,9 @@ SHOT_FIT_OBS = 4
 SHOT_WINDOW_S = 1.5
 BALL_PATH_MAX_S = 1.5
 RIM_CROSS_WINDOW_S = 0.5
+TIP_BELOW_WIDTHS = 0.3  # a miss has come down this far below the rim before it can be tipped
+TIP_TOUCH_S = 1.0  # from the touch to the ball in the air again
+TIP_RISE_WIDTHS = 0.5  # and the tip sends it back up by this much, in rim widths
 LANE_MIN_PLAYERS = 4
 LANE_MARGIN_M = 1.0
 FT_LINE_RADIUS_M = 1.0
@@ -218,6 +221,8 @@ def apply_vision(prev: GameState, new: GameState, obs: Observation, league: Leag
     new.rim_interaction = replace(prev.rim_interaction) if prev.rim_interaction is not None else None
 
     _apply_holder(prev, new, vf, t)
+    if new.holder is not None:
+        new.last_held = (new.holder.track_id, new.holder.team, t)
     _apply_ball_free(new, vf, t)
     _apply_possession(new)
     _apply_release(prev, new, vf, t, league)
@@ -298,8 +303,10 @@ def _apply_ball_free(new: GameState, vf, t: float) -> None:
     if vf.ball is None or vf.ball.source != "detected":
         return
     seen, new.ball_seen_pts = new.ball_seen_pts, t
-    in_reach = any(tr.cls == "player" and _inside(vf.ball.xy, grown(tr.box, BOX_GROW)) for tr in vf.tracks)
-    if in_reach:
+    toucher = holder_candidate(vf.tracks, vf.ball)
+    if toucher is not None:
+        tr = _track(vf.tracks, toucher)
+        new.ball_touch = (toucher, tr.team if tr is not None else "unknown", t)
         new.ball_free_since_pts = None
     elif new.ball_free_since_pts is None or seen is None or t - seen > FREE_GAP_S:
         new.ball_free_since_pts = t
@@ -396,17 +403,51 @@ def _shot_from_rim_entry(new: GameState, t: float) -> None:
     rise: the shooter's body often hides the release, which then gets dated at the last
     hold before the ball vanished. The shot is dated from where the flight was first seen."""
     rel, free = new.last_release, new.ball_free_since_pts
-    if rel is None or free is None:
+    if free is None or t - free > RIM_SHOT_FLIGHT_S:
         return
-    if new.last_shot is not None and new.last_shot.release_pts == rel.t_pts:
+    if rel is not None and rel.t_pts <= free and free - rel.t_pts <= RIM_SHOT_RELEASE_GAP_S:
+        if new.last_shot is not None and new.last_shot.release_pts == rel.t_pts:
+            return
+        new.last_shot = ShotRecord(
+            free, rel.track_id, rel.team, rel.zone, rel.feet_xy,
+            clock_running=new.clock_running, free_throw=new.last_free_throw_pts == rel.t_pts,
+            release_pts=rel.t_pts,
+        )
         return
-    if free < rel.t_pts or free - rel.t_pts > RIM_SHOT_RELEASE_GAP_S or t - free > RIM_SHOT_FLIGHT_S:
+    # No release on record for this flight: the ball left the holder's hands past another
+    # player's box, or while the detector had lost it. The last holder shot it.
+    held = new.last_held
+    if held is None or not 0.0 <= free - held[2] <= RIM_SHOT_RELEASE_GAP_S:
         return
-    new.last_shot = ShotRecord(
-        free, rel.track_id, rel.team, rel.zone, rel.feet_xy,
-        clock_running=new.clock_running, free_throw=new.last_free_throw_pts == rel.t_pts,
-        release_pts=rel.t_pts,
-    )
+    if new.last_shot is not None and new.last_shot.t_pts >= held[2]:
+        return
+    team = held[1] if held[1] in ("home", "away") else new.possession
+    new.last_shot = ShotRecord(free, held[0], team, "unknown", None, clock_running=new.clock_running, release_pts=free)
+
+
+def _apply_tip(new: GameState, vf, t: float, prev_y: float | None) -> None:
+    """A miss that comes down into a player's reach and goes straight back up to the rim is
+    another attempt, by the player it came off: tips and putbacks have no holder and no
+    release. The ball must have dropped below the rim and risen again, so a rebound
+    carried down, or a ball bouncing on the rim, is none."""
+    ri, touch, free = new.rim_interaction, new.ball_touch, new.ball_free_since_pts
+    if ri is None or ri.entered_pts is None or ri.crossed_pts is not None:
+        return
+    y, width = vf.ball.xy[1], vf.rim[2] - vf.rim[0]
+    low = y if new.rim_low_y is None else max(new.rim_low_y, y)
+    new.rim_low_y = low
+    if free is None or touch is None or not ri.entered_pts < touch[2] <= free or free - touch[2] > TIP_TOUCH_S:
+        return
+    if prev_y is None or y > prev_y - RISING_PX:
+        return  # not on its way up
+    if not _inside(vf.ball.xy, rim_region(vf.rim)):
+        return
+    if low < box_center(vf.rim)[1] + TIP_BELOW_WIDTHS * width or low - y < TIP_RISE_WIDTHS * width:
+        return
+    team = touch[1] if touch[1] in ("home", "away") else new.possession
+    new.last_shot = ShotRecord(free, touch[0], team, "two", None, clock_running=new.clock_running, release_pts=free)
+    new.rim_interaction = RimInteraction(entered_pts=t)
+    new.rim_low_y = y
 
 
 def _apply_rim_interaction(prev: GameState, new: GameState, vf, t: float) -> None:
@@ -418,6 +459,7 @@ def _apply_rim_interaction(prev: GameState, new: GameState, vf, t: float) -> Non
     was_inside = prev.ball is not None and prev.rim is not None and _inside(prev.ball.xy, rim_region(prev.rim))
     if inside and ri.entered_pts is None:
         ri.entered_pts = t
+        new.rim_low_y = None
         free = new.ball_free_since_pts
         if free is not None and t - free <= RIM_SHOT_FLIGHT_S:
             new.last_rim_flight_pts = free
@@ -437,6 +479,7 @@ def _apply_rim_interaction(prev: GameState, new: GameState, vf, t: float) -> Non
     ):
         ri.crossed_pts = t
     new.rim_interaction = ri
+    _apply_tip(new, vf, t, prev.ball.xy[1] if prev.ball is not None and prev.ball.source == "detected" else None)
 
 
 def _apply_lane(prev: GameState, new: GameState, league: LeagueConfig, t: float) -> None:

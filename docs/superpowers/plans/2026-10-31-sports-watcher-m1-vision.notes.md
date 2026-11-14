@@ -855,3 +855,41 @@ No production code changed; `models/court` is absent again.
   stoppage).
 - Suites: 286 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
   accuracy on `pba_ros_cvg_q1`, as before).
+
+## Shots at the rim with no release: the last holder's shot, tips (2026-11-14)
+
+- Trace of the rim shots still missed:
+  - Q4, 92.3 s (layup): holder until 91.93 s, ball in the air from 92.2 s, in the rim
+    region at 92.9 s. The hand-off to the air was never a release (the ball passed another
+    player's box, or was a predicted position, on that frame), so the release on record
+    was 4.75 s old and `_shot_from_rim_entry` refused it (limit 3 s).
+  - Q3, 53.6 and 54.6 s (putbacks): the ball comes down into reach and goes back up
+    twice with no holder; `rim_interaction.entered_pts` is set once per release.
+  - Q3, 15.4 s (three): the same stale release, in the seconds before any team is known.
+- Changes in `vision_state`, each with a synthetic play that failed first:
+  - a flight into the rim region with no release on record for it is the last holder's
+    shot when he held the ball at most 3 s before the flight began; dated at the start of
+    the flight, zone unknown — cost if wrong: a loose ball knocked towards the rim within
+    3 s of a hold is that team's attempt;
+  - a tip: after the ball has reached the rim, has dropped at least 0.3 rim widths below
+    it, was in a player's reach within the last second and is rising in the rim region
+    again by at least 0.5 rim widths, a new shot by the player it came off; not after a
+    crossing — cost if wrong: a defender's deflection up towards the rim is his team's
+    attempt. A rebound carried down is none (test).
+- Scores, true / false / missed, before (c311b4c) and after:
+
+  | | Q4 before | Q4 after | Q3 before | Q3 after |
+  |---|---|---|---|---|
+  | shot_attempt | 7 / 2 / 1 | 8 / 2 / 0 | 7 / 1 / 4 | 8 / 2 / 3 |
+  | shot_missed | 3 / 2 / 1 | 3 / 2 / 1 | 1 / 3 / 3 | 1 / 4 / 3 |
+  | rebound | 1 / 1 / 2 | 1 / 1 / 2 | 0 / 1 / 3 | 1 / 1 / 2 |
+  | possession_start | 4 / 3 / 3 | 4 / 3 / 3 | 4 / 8 / 5 | 4 / 7 / 5 |
+
+  The vision clip's confirmed events are unchanged (one more retracted attempt, 88.8 s).
+- Found: Q4's layup (92.2 s against 92.3) and Q3's first putback (53.73 s against 53.6).
+  The second putback (54.63 s against 54.6) is drafted and retracted by TTL: it draws the
+  foul and never reaches the rim. New and false by the truth: an attempt at 15.6 s with no
+  team (the three at 15.4 s, taken before the palette is fitted) and a miss at 55.23 s for
+  the first putback (real on the floor, the truth lists no misses for that scramble).
+- Suites: 289 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
+  accuracy on `pba_ros_cvg_q1`, as before).
