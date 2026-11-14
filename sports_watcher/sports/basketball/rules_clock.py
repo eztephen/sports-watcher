@@ -16,8 +16,10 @@ from sports_watcher.sports.basketball.vision_state import MIN_HOMOGRAPHY_CONF
 from sports_watcher.state.game_state import GameState
 
 TIMEOUT_DRAFT_S = 20.0
-TIMEOUT_CONFIRM_S = 30.0
-TIMEOUT_TTL_S = 12.0
+# On One Sports a foul with a player down keeps the camera away for 21 to 32 s; a timeout
+# for a minute or more. At 30 s the injury stoppage was confirmed as a timeout.
+TIMEOUT_CONFIRM_S = 45.0
+TIMEOUT_TTL_S = 30.0  # the draft at 20 s has to live until the 45 s mark
 TIMEOUT_CONFIDENCE = 0.7
 TIP_RADIUS_M = 2.0
 TIP_RISING_OBS = 3
@@ -27,26 +29,34 @@ TIP_CONFIDENCE = 0.6
 
 
 class TimeoutRule:
-    """Clock stopped and the camera off main for 20 s, once per departure from main;
-    confirmed when both still hold at 30 s."""
+    """Clock stopped and the camera off main for 20 s; confirmed when both still hold at
+    45 s. Dated from the dead ball (the clock's last change), not from the camera leaving:
+    replays that read as the main camera split the absence, and the last part began 22 s
+    after the whistle on footage. One timeout per stoppage of the clock."""
 
     name = "timeout"
 
     def __init__(self) -> None:
-        self._fired_for: float | None = None
+        self._drafted_left: float | None = None
+        self._drafted_stop: float | None = None
+        self._done_stop: float | None = -1.0  # the stoppage whose timeout has been confirmed
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
-        left = new.camera_left_main_pts
-        if left is None or new.clock_running or obs.camera_state == "main" or left == self._fired_for:
+        left, stop = new.camera_left_main_pts, new.last_clock_change_pts
+        if left is None or new.clock_running or obs.camera_state == "main":
             return []
-        if obs.t_pts - left < TIMEOUT_DRAFT_S:
+        if left == self._drafted_left:
+            if obs.t_pts >= left + TIMEOUT_CONFIRM_S:
+                self._done_stop = self._drafted_stop  # it stood: no second timeout in this stoppage
             return []
-        self._fired_for = left
+        if stop == self._done_stop or obs.t_pts - left < TIMEOUT_DRAFT_S:
+            return []
+        self._drafted_left, self._drafted_stop = left, stop
         return [
             EventDraft(
                 type="timeout",
                 team="unknown",
-                t_pts=left,
+                t_pts=stop if stop is not None and stop <= left else left,
                 evidence=vision_evidence(new, obs, note="camera_off_main"),
                 confidence=TIMEOUT_CONFIDENCE,
                 confirmer=off_main_and_stopped_until(left, left + TIMEOUT_CONFIRM_S),

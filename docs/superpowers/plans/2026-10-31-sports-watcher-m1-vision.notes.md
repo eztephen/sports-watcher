@@ -833,3 +833,25 @@ No production code changed; `models/court` is absent again.
   typical frame shows one long line across the court's width, the method needs two).
   `data/labels/court_pba/click_tool.html` and `tmp/court_clicks_to_coco.py` turn four to
   six clicked points per frame into all keypoints; waiting on the clicks.
+
+## Timeouts: 45 s, dated from the dead ball, one per stoppage (2026-11-14)
+
+- Time off the main camera with the clock stopped, per stoppage on the four clips: fouls
+  and free throws 21 s and 25 s (vision clip), 23 s and 32 s (Q3, the 32 s one with a
+  player down); timeouts 57 s and running at the clip's end (Q4) and the whole 60 s
+  (`pba_ros_cvg_2700`).
+- `TIMEOUT_CONFIRM_S` 30 to 45 (TTL 12 to 30 so the draft at 20 s lives that long): the
+  Q3 stoppage at 58.63 s is retracted with `camera_back_on_main` — cost: a timeout that
+  keeps the camera away for less than 45 s is missed, and a confirmation comes 15 s later.
+- The timeout is dated at the clock's last change when that is before the camera left.
+  On Q4 the replays at 113 to 123 s read as the main camera, the last absence began at
+  123.77 s and that was the date; now 101.0 s, the truth's dead ball — cost: a timeout
+  called later in a stoppage that began with a foul is dated at the foul.
+- One timeout per stoppage of the clock: once a draft has stood to its 45 s mark, a later
+  absence in the same stoppage drafts nothing. A retracted draft does not block the next.
+- Scores: timeout 1 / 0 / 0 on Q4 (was 0 / 1 / 1) and on `pba_ros_cvg_2700`; none
+  confirmed on Q3 (was 0 / 1 / 0) or the vision clip. No other event changed on any
+  clip. The vision clip's two retracted drafts now share the date 91.75 s (one clock
+  stoppage).
+- Suites: 286 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
+  accuracy on `pba_ros_cvg_q1`, as before).

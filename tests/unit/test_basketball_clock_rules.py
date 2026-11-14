@@ -18,15 +18,71 @@ LANE = {
 C = {1: ("home", (13.5, 7.5)), 2: ("away", (14.5, 7.5)), 3: ("home", (16.0, 5.0))}
 
 
-def test_timeout_drafted_at_twenty_seconds_and_confirmed_at_thirty():
+def test_timeout_drafted_at_twenty_seconds_and_confirmed_at_forty_five():
     b = PlayBuilder(Scene(L))
     b.hold(0.5, P, holder_id=1)
-    for _ in range(31 * 30):
+    for _ in range(40 * 30):
         b.frame(P, None, camera_hint="closeup")
     ev = drive(observations(b.frames, running=False))
     to = provisional(ev, "timeout")
     assert len(to) == 1 and abs(to[0].t_pts - 0.5) < 0.05 and to[0].team == "unknown"
+    assert confirmed(ev, "timeout") == []  # 40 s is not enough
+    for _ in range(6 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    ev = drive(observations(b.frames, running=False))
     assert len(confirmed(ev, "timeout")) == 1
+
+
+def test_a_stoppage_of_half_a_minute_is_not_a_timeout():
+    # Q3 of the PBA footage: a foul with a player down, 32 s of close-ups, then the main
+    # camera on the free throws. Timeouts on the same broadcast keep the camera away for a
+    # minute or more.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.5, P, holder_id=1)
+    for _ in range(32 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    b.hold(10.0, P, holder_id=1)
+    ev = drive(observations(b.frames, running=False))
+    assert len(retracted(ev, "timeout")) == 1 and confirmed(ev, "timeout") == []
+
+
+def _stopped_from(obs, t_stop):
+    """The clock runs to ``t_stop`` and stands still from there."""
+    frozen = next(o.scoreboard.clock_s for o in obs if o.t_pts >= t_stop and o.scoreboard is not None)
+    for o in obs:
+        if o.scoreboard is not None and o.t_pts >= t_stop:
+            o.scoreboard = o.scoreboard.model_copy(update={"clock_s": frozen})
+    return obs
+
+
+def test_timeout_is_dated_from_the_dead_ball_and_drafted_once_across_a_replay():
+    # Q4: dead ball at 3 s, the main camera for two more seconds, close-ups for 10 s, a
+    # replay that reads as the main camera for 10 s, then the huddle for a minute.
+    b = PlayBuilder(Scene(L))
+    b.hold(5.0, P, holder_id=1)
+    for _ in range(10 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    for _ in range(10 * 30):
+        b.frame(P, None)
+    for _ in range(60 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    ev = drive(_stopped_from(observations(b.frames), 3.0))
+    to = confirmed(ev, "timeout")
+    assert len(provisional(ev, "timeout")) == 1 and len(to) == 1
+    assert abs(to[0].t_pts - 3.0) < 0.5
+
+
+def test_two_long_absences_in_one_stoppage_are_one_timeout():
+    b = PlayBuilder(Scene(L))
+    b.hold(2.0, P, holder_id=1)
+    for _ in range(50 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    for _ in range(5 * 30):
+        b.frame(P, None)
+    for _ in range(50 * 30):
+        b.frame(P, None, camera_hint="closeup")
+    ev = drive(_stopped_from(observations(b.frames), 1.0))
+    assert len(provisional(ev, "timeout")) == 1 and len(confirmed(ev, "timeout")) == 1
 
 
 def test_timeout_retracted_when_play_resumes():
