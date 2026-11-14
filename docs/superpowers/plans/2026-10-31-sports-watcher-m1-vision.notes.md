@@ -936,3 +936,22 @@ No production code changed; `models/court` is absent again.
   label. A trained classifier is not worth building on this evidence. The other errors
   in `possession_start` are starts found 1.2 to 2.1 s late after baskets and rebounds
   (Q4 37.3, 49.8, 82.8 s) and the cold start.
+
+## Possession dated from the team's first touch after a shot (2026-11-14)
+
+- Starts after rebounds and baskets were 1.2 to 2.1 s late: the hold that changes the
+  possession begins after the scramble under the rim, where track ids change.
+- Change in `_apply_possession`: who holds the ball is decided as before, so no new
+  possession changes; the date moves to that team's first detected touch since the ball
+  reached the rim, at most 2.5 s back and with no touch by the other team in between
+  (`_since_first_touch`, `GameState.touches`) — cost if wrong: a deflection by the team
+  that ends up with the ball dates its possession early.
+- Effect, true / false / missed: Q3 possession_start 4 / 7 / 5 to 5 / 7 / 4 (32.07 s
+  against 32.6, where the draft at 33.5 s used to be retracted); vision 5 / 1 / 1 and Q4
+  4 / 3 / 3 unchanged in count, with dates moving earlier by 0.03 to 2.2 s. The two Q4
+  starts this was aimed at are still outside the 1 s tolerance: 84.17 s against 82.8
+  (was 84.7; a Rain or Shine touch at 83.2 s sits between the Converge touches) and
+  38.4 s against 37.3 (the touches before it are predicted ball positions, which do not
+  count). No other event type changed.
+- Suites: 291 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
+  accuracy on `pba_ros_cvg_q1`, as before).

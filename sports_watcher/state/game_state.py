@@ -89,6 +89,7 @@ class GameState:
     last_held: tuple[int, Team, float] | None = None  # track, team, last time someone was the holder
     ball_touch: tuple[int, Team, float] | None = None  # the player whose reach the ball was last seen in
     rim_low_y: float | None = None  # lowest the ball has been (largest image y) since it reached the rim
+    touches: list[tuple[float, Team]] = field(default_factory=list)  # recent sightings of the ball in a player's reach
     lane_formation: LaneFormation | None = None
     free_throws_pending: int = 0
     possession_since_pts: float | None = None

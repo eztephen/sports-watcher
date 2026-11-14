@@ -345,3 +345,35 @@ def test_a_clock_read_as_standing_still_closes_the_gate():
     obs = [replace(o, scoreboard=o.scoreboard.model_copy(update={"clock_s": frozen})) if o.scoreboard is not None and o.t_pts >= 2.0 else o for o in obs]
     states = _states(obs)
     assert states[-1].clock_running is False and states[-1].clock_state == "read"
+
+
+def _rebound_through_two_track_ids(first_team: str):
+    """A miss; the ball is seen for two frames in one player's hands, vanishes among the
+    bodies for 0.8 s, and is then held by another track (on footage: the same rebounder
+    under a new id, or the teammate he handed it to)."""
+    from tests.helpers.vision import HOLD_M
+
+    players = {1: ("home", (22.0, 7.5)), 2: (first_team, (25.0, 6.0)), 5: ("away", (21.0, 4.0)), 3: ("home", (15.0, 3.0))}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, players, holder_id=1)
+    b.shot(1, players, "right", outcome="miss")
+    touch_at = b.t
+    for _ in range(2):
+        b.frame(players, (players[2][1], HOLD_M))
+    for _ in range(24):
+        b.frame(players, None)
+    held_at = b.t
+    b.hold(1.0, players, holder_id=5)
+    return _states(observations(b.frames)), touch_at, held_at
+
+
+def test_a_rebound_is_dated_from_the_teams_first_touch_after_the_shot():
+    states, touch_at, _ = _rebound_through_two_track_ids("away")
+    assert states[-1].possession == "away"
+    assert abs(states[-1].possession_since_pts - touch_at) < 0.05  # not 0.8 s later, at the hold
+
+
+def test_an_opponents_touch_does_not_date_the_rebound():
+    states, _, held_at = _rebound_through_two_track_ids("home")
+    assert states[-1].possession == "away"
+    assert abs(states[-1].possession_since_pts - held_at) < 0.1

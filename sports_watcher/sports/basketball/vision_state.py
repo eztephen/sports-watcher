@@ -45,6 +45,7 @@ SHOT_FIT_OBS = 4
 SHOT_WINDOW_S = 1.5
 BALL_PATH_MAX_S = 1.5
 RIM_CROSS_WINDOW_S = 0.5
+REBOUND_TOUCH_S = 2.5  # how far back a team's first touch after a shot may date its possession
 TIP_BELOW_WIDTHS = 0.3  # a miss has come down this far below the rim before it can be tipped
 TIP_TOUCH_S = 1.0  # from the touch to the ball in the air again
 TIP_RISE_WIDTHS = 0.5  # and the tip sends it back up by this much, in rim widths
@@ -306,7 +307,9 @@ def _apply_ball_free(new: GameState, vf, t: float) -> None:
     toucher = holder_candidate(vf.tracks, vf.ball)
     if toucher is not None:
         tr = _track(vf.tracks, toucher)
-        new.ball_touch = (toucher, tr.team if tr is not None else "unknown", t)
+        team = tr.team if tr is not None else "unknown"
+        new.ball_touch = (toucher, team, t)
+        new.touches = [(pts, tm) for pts, tm in new.touches if t - pts <= REBOUND_TOUCH_S] + [(t, team)]
         new.ball_free_since_pts = None
     elif new.ball_free_since_pts is None or seen is None or t - seen > FREE_GAP_S:
         new.ball_free_since_pts = t
@@ -320,7 +323,8 @@ def _apply_possession(new: GameState) -> None:
     if scored_on is not None and h.since_pts > scored_on[1]:
         # After a basket the ball belongs to the team scored on, whatever label the player
         # who picks it up carries (team labels are least reliable under the basket).
-        new.possession, new.possession_since_pts = scored_on[0], h.since_pts
+        since = _since_first_touch(new, scored_on[0], h.since_pts)
+        new.possession, new.possession_since_pts = scored_on[0], since
         new.possession_locked_until_pts = h.since_pts + POST_BASKET_LOCK_S
         return
     locked = new.possession_locked_until_pts
@@ -328,7 +332,25 @@ def _apply_possession(new: GameState) -> None:
         return  # the inbound: a label does not hand the ball back to the team that scored
     if h.team in ("home", "away") and h.team != new.possession:
         new.possession = h.team
-        new.possession_since_pts = h.since_pts
+        new.possession_since_pts = _since_first_touch(new, h.team, h.since_pts)
+
+
+def _since_first_touch(state: GameState, team: Team, held_since: float) -> float:
+    """After a shot the ball is fought for under the rim and the tracker changes ids there:
+    the hold that makes the possession official starts a second or two after the team first
+    had the ball. Date it from that team's first touch since the ball reached the rim, as
+    long as the other team has not touched it since."""
+    ri = state.rim_interaction
+    if ri is None or ri.entered_pts is None or held_since <= ri.entered_pts:
+        return held_since
+    since = held_since
+    for pts, tm in reversed(state.touches):
+        if pts >= held_since:
+            continue
+        if tm != team or pts <= ri.entered_pts or held_since - pts > REBOUND_TOUCH_S:
+            break
+        since = pts
+    return since
 
 
 def _apply_release(prev: GameState, new: GameState, vf, t: float, league: LeagueConfig) -> None:
