@@ -720,3 +720,42 @@ No production code changed; `models/court` is absent again.
 - Build note: the scoring run was started while the cache builder was still writing and
   truncated its file (`CachedPerceiver` rebuilds an incomplete cache). Rebuilt from the
   memo. `tmp/clip_run.py` should refuse to run without the completion marker.
+
+## Shot rules: misses, twins, the make on the wrong attempt (2026-11-14)
+
+- No `shot_missed` was drafted on any PBA clip. Cause, in `ShotOutcomeRule`: the miss
+  waits out the scoreboard lag (`max(3, score_lag_s)` after the ball leaves the rim), and
+  an open attempt was dropped at `max(10, score_lag_s + 1)` s. With One Sports' lag of
+  10 s the attempt was gone at 11 s and the miss was due at 11 s or later. The unit tests
+  ran at the default 3 s lag and never met it.
+- Changes, each with a synthetic play that failed first:
+  - an attempt stays open until its miss deadline has passed;
+  - a miss needs the ball to have reached the rim after the release (an attempt that
+    never did was retracted, there is no miss to call) and is confirmed at once: it is
+    only called after the lag with no score change, and waiting for the next holder
+    retracted it whenever the director cut to a close-up (138.6 s on Q3);
+  - a rim crossing belongs to the latest open attempt before it, not to every open one;
+  - a score change goes to the latest attempt of that team the ball reached the rim
+    after (the release read off the ball dropping out of the net took the 35.1 s make on
+    Q4 and dated it 37.27 s);
+  - a shot by a player whose team is unknown is held back: a 2 or 3 inside the lag gives
+    it the scoring team, otherwise it is drafted as unknown when the lag is out if the
+    ball reached the rim — cost: such an attempt is emitted up to the lag later, and one
+    whose ball never reached the rim is not emitted at all (it used to be drafted and
+    retracted).
+- Scores, true / false / missed, before (26af625) and after:
+
+  | | Q4 before | Q4 after | Q3 before | Q3 after | vision |
+  |---|---|---|---|---|---|
+  | shot_attempt | 7 / 4 / 1 | 7 / 2 / 1 | 6 / 3 / 5 | 6 / 2 / 5 | 5 / 0 / 0, same |
+  | shot_made | 3 / 1 / 1 | 4 / 0 / 0 | 4 / 0 / 0 | 4 / 0 / 0 | 4 / 0 / 0, same |
+  | shot_missed | 0 / 0 / 4 | 3 / 2 / 1 | 0 / 0 / 4 | 1 / 3 / 3 | 0 / 0 / 1, same |
+
+  Every other type is unchanged on all three clips.
+- The false misses follow attempts that were already false or wrong: 69.63 s (the second
+  attempt at 68.13 s, possibly a real tip) and 103.13 s (the attempt after the dead ball)
+  on Q4; 112.42 s (the false attempt at 110.92 s) and 199.05 s (right shot, wrong team)
+  on Q3. The Q3 miss at 48.23 s is dated when the ball leaves the rim region, 1.3 s after
+  the truth's 46.9 s. The misses still missing are the shots that are not found at all.
+- Suites: 274 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
+  accuracy on `pba_ros_cvg_q1`, 0.866 against 0.9, as before).

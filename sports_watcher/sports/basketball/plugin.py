@@ -54,7 +54,7 @@ class BasketballPlugin:
             PossessionStartRule(),
             ReboundRule(score_lag_s),
             TurnoverRule(league, score_lag_s),
-            ShotAttemptRule(),
+            ShotAttemptRule(score_lag_s),
             ShotOutcomeRule(score_lag_s, score_delay_s),
             FreeThrowRule(league),
             TimeoutRule(),

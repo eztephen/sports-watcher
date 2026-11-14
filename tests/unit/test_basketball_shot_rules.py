@@ -264,3 +264,84 @@ def test_attempt_dated_after_its_release_is_confirmed_by_a_rim_entry_in_between(
     (draft,) = ShotAttemptRule()(GameState(), state, obs)
     assert draft.t_pts == 2.0
     assert draft.confirmer(draft, state, obs) == "confirmed"
+
+
+def test_a_miss_is_still_called_when_the_scoreboard_lags_ten_seconds():
+    # One Sports: score_lag_s is 10. The miss waits out the lag, so the attempt has to
+    # stay open that long; it used to be dropped at 11 s, just before the miss was due.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="miss")
+    b.hold(14.0, S, holder_id=2)
+    ev = drive(observations(b.frames), score_lag_s=10.0)
+    missed = confirmed(ev, "shot_missed")
+    assert len(missed) == 1 and missed[0].team == "home"
+    assert 1.5 < missed[0].t_pts < 2.5  # dated when the ball left the rim, not when it was called
+
+
+def test_a_rim_crossing_belongs_to_the_latest_attempt_before_it():
+    # Home misses, away takes the rebound and scores at the same basket inside the lag.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="miss")
+    b.hold(1.0, S, holder_id=2)
+    away_shot = b.t
+    b.shot(2, S, "right", outcome="make")
+    b.hold(8.0, S, holder_id=1)
+    ev = drive(observations(b.frames, deltas={away_shot + 5.3: (0, 2)}), score_lag_s=10.0)
+    assert {e.team for e in provisional(ev, "shot_made")} == {"away"}
+    made = confirmed(ev, "shot_made")
+    assert len(made) == 1 and abs(made[0].t_pts - away_shot) < 0.05
+
+
+def test_a_score_change_goes_to_the_attempt_that_reached_the_rim():
+    # A basket, then the scorer's team throws a lob that never reaches the rim (on footage:
+    # the ball dropping out of the net read as a new release). The points are the basket's.
+    U = {1: ("home", (22.0, 7.5)), 3: ("home", (25.5, 7.0)), 2: ("away", (12.0, 6.0))}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, U, holder_id=1)
+    b.shot(1, U, "right", outcome="make")
+    b.hold(0.6, U, holder_id=1)
+    b.lob(1, 3, U, "right")
+    b.hold(8.0, U, holder_id=3)
+    ev = drive(observations(b.frames, deltas={5.9: (2, 0)}), score_lag_s=10.0)
+    made = confirmed(ev, "shot_made")
+    assert len(made) == 1 and abs(made[0].t_pts - 0.6) < 0.05
+
+
+N = {1: ("unknown", (22.0, 7.5)), 2: ("away", (25.0, 6.0)), 3: ("home", (18.0, 3.0))}
+
+
+def test_a_shot_by_a_player_of_unknown_team_takes_the_team_that_scores():
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, N, holder_id=1)
+    b.shot(1, N, "right", outcome="make")
+    b.hold(8.0, N, holder_id=2)
+    ev = drive(observations(b.frames, deltas={5.9: (2, 0)}), score_lag_s=10.0)
+    att = provisional(ev, "shot_attempt")
+    assert len(att) == 1 and att[0].team == "home" and att[0].evidence.note != "retroactive"
+    assert abs(att[0].t_pts - 0.6) < 0.05 and len(confirmed(ev, "shot_attempt")) == 1
+    made = confirmed(ev, "shot_made")
+    assert len(made) == 1 and made[0].team == "home" and made[0].t_pts == att[0].t_pts
+
+
+def test_a_shot_by_a_player_of_unknown_team_with_no_score_change_is_emitted_when_the_lag_is_out():
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, N, holder_id=1)
+    b.shot(1, N, "right", outcome="miss")
+    b.hold(4.0, N, holder_id=2)
+    ev = drive(observations(b.frames), score_lag_s=3.0)
+    att = confirmed(ev, "shot_attempt")
+    assert len(att) == 1 and att[0].team == "unknown" and abs(att[0].t_pts - 0.6) < 0.05
+
+
+def test_a_miss_called_after_the_lag_needs_no_next_holder():
+    # The broadcast cuts to a close-up after the miss: nobody is seen holding the ball.
+    # The lag is out with no score change, so the miss stands.
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="miss")
+    for _ in range(round(9.0 * b.fps)):
+        b.frame(S, None)
+    ev = drive(observations(b.frames))
+    assert len(confirmed(ev, "shot_missed")) == 1 and retracted(ev, "shot_missed") == []

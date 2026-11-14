@@ -41,40 +41,76 @@ ZONE_POINTS = {"two": 2, "three": 3}
 POINTS_ZONE = {1: "ft", 2: "two", 3: "three"}
 
 
+@dataclass
+class _HeldShot:
+    shot: object  # the ShotRecord of a shooter whose team is unknown
+    score_at: tuple[int, int]
+    since: float
+    rim_seen: bool = False
+
+
 class ShotAttemptRule:
-    """Drafts once per recorded shot while the clock runs; free throws are not shots."""
+    """Drafts once per recorded shot while the clock runs; free throws are not shots.
+
+    A shot by a player whose team is unknown is held back: a 2 or 3 inside the scoreboard
+    lag gives it the scoring team (drafting it at once and adding the score-change twin
+    put two attempts on one shot); with no score change it is drafted as it stands when
+    the lag is out, if the ball reached the rim."""
 
     name = "shot_attempt"
 
-    def __init__(self) -> None:
+    def __init__(self, score_lag_s: float = DELTA_WINDOW_S) -> None:
         self._drafted: set[float] = set()
+        self._lag = score_lag_s
+        self._held: list[_HeldShot] = []
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
+        drafts = self._release_held(new, obs)
         shot = new.last_shot
         if shot is None or shot.t_pts in self._drafted:
-            return []
+            return drafts
         self._drafted.add(shot.t_pts)  # decided once, at record time: never deferred
         if not shot.clock_running or shot.free_throw:
-            return []
+            return drafts
+        since = shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts)
+        if shot.team not in ("home", "away"):
+            self._held.append(_HeldShot(shot, new.score(), since))
+            return drafts
+        # the rim entry counts from the release: a layup dated at the shooter's last
+        # touch is already in the rim area by then
+        return [*drafts, self._draft(shot, shot.team, rim_or_delta(shot.team, since, new.score()), new, obs)]
+
+    def _release_held(self, new: GameState, obs: Observation) -> list[EventDraft]:
+        out, keep = [], []
+        ri = new.rim_interaction
+        for h in self._held:
+            if ri is not None and ri.entered_pts is not None and ri.entered_pts > h.since:
+                h.rim_seen = True
+            scorer = next((t for t in ("home", "away") if team_delta(t, h.score_at, new.score()) in (2, 3)), None)
+            if scorer is not None:
+                out.append(self._draft(h.shot, scorer, always_confirm(), new, obs))
+            elif obs.t_pts - h.shot.t_pts < self._lag:
+                keep.append(h)
+            elif h.rim_seen:
+                out.append(self._draft(h.shot, h.shot.team, always_confirm(), new, obs))
+        self._held = keep
+        return out
+
+    @staticmethod
+    def _draft(shot, team, confirmer, new: GameState, obs: Observation) -> EventDraft:
         tr = next((t for t in new.tracks if t.track_id == shot.track_id), None)
         conf = tr.confidence if tr is not None else 0.0
-        return [
-            EventDraft(
-                type="shot_attempt",
-                team=shot.team,
-                t_pts=shot.t_pts,
-                evidence=vision_evidence(new, obs, track_id=shot.track_id, detector_confidence=conf),
-                confidence=base_confidence(ATTEMPT_CONFIDENCE, new),
-                # the rim entry counts from the release: a layup dated at the shooter's last
-                # touch is already in the rim area by then
-                confirmer=rim_or_delta(
-                    shot.team, shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts), new.score()
-                ),
-                player=PlayerRef(track_id=shot.track_id, confidence=conf),
-                court_xy=shot.court_xy,
-                zone=shot.zone,
-            )
-        ]
+        return EventDraft(
+            type="shot_attempt",
+            team=team,
+            t_pts=shot.t_pts,
+            evidence=vision_evidence(new, obs, track_id=shot.track_id, detector_confidence=conf),
+            confidence=base_confidence(ATTEMPT_CONFIDENCE, new),
+            confirmer=confirmer,
+            player=PlayerRef(track_id=shot.track_id, confidence=conf),
+            court_xy=shot.court_xy,
+            zone=shot.zone,
+        )
 
 
 @dataclass
@@ -85,6 +121,8 @@ class _OpenAttempt:
     zone: str
     court_xy: tuple[float, float] | None
     score_at: tuple[int, int]
+    since: float = 0.0  # the release: rim entries after it are this attempt's
+    rim_seen: bool = False
     made_points: int | None = None  # points the vision-only shot_made carries (0 = unknown zone)
     missed: bool = False
     resolved: bool = False
@@ -108,7 +146,17 @@ class ShotOutcomeRule:
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
         drafts: list[EventDraft] = []
         self._open_new(new)
-        self._open = [a for a in self._open if obs.t_pts - a.t_pts <= self._open_max]
+        # an attempt stays open until its miss can be called: the miss waits out the lag,
+        # which on a slow scoreboard is longer than the window for a made basket
+        self._open = [
+            a for a in self._open
+            if obs.t_pts - a.t_pts <= self._open_max + (0.0 if a.resolved or a.missed else self._miss_wait)
+        ]
+        ri = new.rim_interaction
+        if ri is not None and ri.entered_pts is not None:
+            for a in self._open:
+                if ri.entered_pts > a.since:
+                    a.rim_seen = True
         for team in ("home", "away"):
             d = team_delta(team, prev.score(), new.score())
             if d in (1, 2, 3):
@@ -126,8 +174,9 @@ class ShotOutcomeRule:
         self._seen.add(shot.t_pts)
         if not shot.clock_running or shot.free_throw:
             return
+        since = shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts)
         self._open.append(
-            _OpenAttempt(shot.t_pts, shot.team, shot.track_id, shot.zone, shot.court_xy, new.score())
+            _OpenAttempt(shot.t_pts, shot.team, shot.track_id, shot.zone, shot.court_xy, new.score(), since)
         )
 
     def _on_delta(self, team: str, points: int, new: GameState, obs: Observation) -> list[EventDraft]:
@@ -138,14 +187,16 @@ class ShotOutcomeRule:
             if new.free_throws_pending or recent_ft:
                 return []  # FreeThrowRule owns it
             return self._retroactive_free_throw(team, new, obs)
-        att = next(
-            (
-                a
-                for a in reversed(self._open)
-                if a.team == team and not a.resolved and obs.t_pts - a.t_pts <= self._lag
-            ),
-            None,
-        )
+        # the latest attempt of the scorers (or of a shooter whose team is unknown) inside
+        # the lag; one the ball reached the rim after comes first, so a release read off the
+        # ball dropping out of the net does not take the points
+        candidates = [
+            a for a in self._open
+            if a.team in (team, "unknown") and not a.resolved and not a.missed and obs.t_pts - a.t_pts <= self._lag
+        ]
+        att = next((a for a in reversed(candidates) if a.rim_seen), candidates[-1] if candidates else None)
+        if att is not None:
+            att.team = team
         if att is None:
             retro = self._retroactive_attempt(team, points, new, obs)
             return [retro, self._made(team, points, retro.t_pts, RETROACTIVE_CONFIDENCE, new, obs, retro.player, retro.zone, None, note="retroactive")]
@@ -162,8 +213,9 @@ class ShotOutcomeRule:
         if prev.rim_interaction is not None and prev.rim_interaction.crossed_pts == ri.crossed_pts:
             return []
         out = []
-        for att in self._open:
-            if att.resolved or att.made_points is not None or ri.crossed_pts <= att.t_pts:
+        before = [a for a in self._open if a.t_pts < ri.crossed_pts]
+        for att in before[-1:]:  # the crossing is the latest attempt's, not every open one's
+            if att.resolved or att.missed or att.made_points is not None or att.team not in ("home", "away"):
                 continue
             points = ZONE_POINTS.get(att.zone)
             att.made_points = points if points is not None else 0
@@ -188,7 +240,10 @@ class ShotOutcomeRule:
         ri = new.rim_interaction
         out = []
         for att in self._open:
-            if att.resolved or att.missed:
+            if att.resolved or att.missed or att.team not in ("home", "away"):
+                continue
+            if not att.rim_seen and obs.t_pts - att.t_pts > DEFAULT_TTL_S:
+                att.missed = True  # never reached the rim: its attempt was retracted, no miss to call
                 continue
             left = ri.left_pts if ri is not None and ri.left_pts is not None and ri.left_pts > att.t_pts else None
             entered = ri is not None and ri.entered_pts is not None and ri.entered_pts > att.t_pts
@@ -208,7 +263,8 @@ class ShotOutcomeRule:
                     t_pts=miss_t,
                     evidence=vision_evidence(new, obs, track_id=att.track_id),
                     confidence=base_confidence(MISSED_CONFIDENCE, new),
-                    confirmer=holder_or_late_delta(att.team, miss_t, att.score_at),
+                    # the lag is out with no score change: nothing is left to wait for
+                    confirmer=always_confirm(),
                     player=PlayerRef(track_id=att.track_id, confidence=0.0),
                     court_xy=att.court_xy,
                     zone=att.zone,
