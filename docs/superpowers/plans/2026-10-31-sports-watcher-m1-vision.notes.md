@@ -594,3 +594,39 @@ No production code changed; `models/court` is absent again.
 - Not done: any fix. Candidates, in the order the clip suggests: a team label that a
   track keeps by vote over its life and across re-identification, referees out of the
   player class, a longer or camera-independent test for timeouts, the late score read.
+
+## Team of the ball holder: two attempts, both backed out (2026-11-14)
+
+- Looked at the four wrong-team moments on `pba_ros_cvg_q3` with the cached boxes drawn
+  over the frames. Three causes, none of them a rule:
+  - identity swaps in the tracker: track 331 follows a Converge player until 40 s and the
+    Rain or Shine ball handler from 40.8 s, track 1370 does the same at 195.6 s. The team
+    is a majority vote over the track's life, so the first player's team stays;
+  - the holder given to the defender whose box overlaps the ball at the rim (46.6 s);
+  - a false ball at a player's foot (193.5 s).
+  831 player tracks in 210 s, median life 0.7 s.
+- Attempt 1, a crop abstains when its torso window is covered by another box or its
+  patches split between the two cluster colours, and new tracks are sampled five times in
+  their first second. Labels recomputed over the cached tracks (same boxes and ids, so a
+  fair measure): Q3 shot_attempt 5 / 2 / 6 to 6 / 2 / 5, possession_start 3 / 7 / 6 to
+  4 / 6 / 5, but a second false turnover confirmed; vision clip one new false
+  shot_attempt (87.12 s). The targets (46.73, 197.50, 41.57 s) did not move.
+- Attempt 2, on top of it: the tracker refuses to match a detection whose crop reads as
+  the other kit once a track's kit leads by two readings. Real rebuild of
+  `pba_ros_cvg_vision`: possession_start 5 / 1 / 1 to 5 / 5 / 1, shot_attempt 5 / 0 / 0 to
+  5 / 1 / 0, one false turnover confirmed. The new false starts (26.73, 29.2, 68.6,
+  69.6 s) are a lone Converge dribbler whose crop reads as the white kit: the gate splits
+  his track and the new track carries the misreading, where the old vote buried it.
+- Why the crop misreads: the fitted "white" centre is Lab (176, 133, 122), close to the
+  floor and to skin, so a torso window with floor in it looks like the white kit. One
+  crop agrees with its track's settled team 88 % of the time on the vision clip and 90 %
+  on Q3 (2541 and 3416 crops of tracks that live 4 s or more), and narrower torso windows
+  score lower (84 to 89 %). A hard decision on one crop is wrong one time in ten.
+- Both changes are backed out; the patch is kept in `tmp/kitgate_abstain.patch`. Measuring
+  note: re-running the tracker over cached track boxes is not a valid test (it scores as
+  badly with the gate off); only a rebuild from the detector is, about 25 s of compute per
+  second of clip.
+- What this points to: the kit reading needs a better feature than the torso's median
+  colour before the tracker can lean on it (pixels near neither kit left out, or a small
+  trained classifier), and the swaps themselves need appearance in the association cost
+  as a soft term, not a gate. Neither is started.
