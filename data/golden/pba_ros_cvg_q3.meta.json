@@ -16,6 +16,7 @@
     "52.4, 53.6 and 54.6 s are a Converge layup and two putbacks under the left basket, read from 0.5 s sheets (+/-0.5 s); the last one draws the foul, so the scorer's sheet has no attempt for it. The rebounds between them are not listed",
     "zones of the missed shots (15.4, 46.3, 137.2, 197.6 s) are read by eye",
     "197.6 s: a Rain or Shine drive that misses; the shot clock shows 14 at 200 s (an offensive rebound or a tip) and 24 at 201 s with Converge running the other way. The rebound is not listed and the Converge start at 200.7 s is +/-1 s",
-    "after the stoppage Converge inbounds at about 167.5 s; that restart is not listed as a possession_start because Converge already had the ball from 139.1 s"
+    "after the stoppage Converge inbounds at about 167.5 s; that restart is not listed as a possession_start because Converge already had the ball from 139.1 s",
+    "a possession after a made basket or free throw starts when the other team picks the ball up, not at the inbound pass (convention set on 2026-11-14); re-dated on 0.4 s frames: 32.6, 102.8, 116.0, 123.6 and 177.5 s (drafted as 33.0, 102.3, 117.0, 124.5, 178.0 s). +/-0.4 s"
   ]
 }

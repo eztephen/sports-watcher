@@ -4,7 +4,7 @@
 {"t_pts": 18.3, "type": "possession_start", "team": "away"}
 {"t_pts": 30.3, "type": "shot_attempt", "team": "away", "zone": "two"}
 {"t_pts": 30.3, "type": "shot_made", "team": "away", "points": 2}
-{"t_pts": 33.0, "type": "possession_start", "team": "home"}
+{"t_pts": 32.6, "type": "possession_start", "team": "home"}
 {"t_pts": 36.5, "type": "score_change", "team": "away", "points": 2}
 {"t_pts": 46.3, "type": "shot_attempt", "team": "home", "zone": "two"}
 {"t_pts": 46.9, "type": "shot_missed", "team": "home"}
@@ -18,15 +18,15 @@
 {"t_pts": 98.5, "type": "score_change", "team": "away", "points": 1}
 {"t_pts": 101.0, "type": "free_throw_attempt", "team": "away", "zone": "ft"}
 {"t_pts": 101.0, "type": "free_throw_made", "team": "away", "points": 1}
-{"t_pts": 102.3, "type": "possession_start", "team": "home"}
+{"t_pts": 102.8, "type": "possession_start", "team": "home"}
 {"t_pts": 106.5, "type": "score_change", "team": "away", "points": 1}
 {"t_pts": 113.4, "type": "shot_attempt", "team": "home", "zone": "three"}
 {"t_pts": 113.4, "type": "shot_made", "team": "home", "points": 3}
-{"t_pts": 117.0, "type": "possession_start", "team": "away"}
+{"t_pts": 116.0, "type": "possession_start", "team": "away"}
 {"t_pts": 120.5, "type": "score_change", "team": "home", "points": 3}
 {"t_pts": 122.0, "type": "shot_attempt", "team": "away", "zone": "two"}
 {"t_pts": 122.0, "type": "shot_made", "team": "away", "points": 2}
-{"t_pts": 124.5, "type": "possession_start", "team": "home"}
+{"t_pts": 123.6, "type": "possession_start", "team": "home"}
 {"t_pts": 128.5, "type": "score_change", "team": "away", "points": 2}
 {"t_pts": 137.2, "type": "shot_attempt", "team": "home", "zone": "two"}
 {"t_pts": 138.9, "type": "shot_missed", "team": "home"}
@@ -34,7 +34,7 @@
 {"t_pts": 139.1, "type": "possession_start", "team": "away"}
 {"t_pts": 176.1, "type": "shot_attempt", "team": "away", "zone": "two"}
 {"t_pts": 176.1, "type": "shot_made", "team": "away", "points": 2}
-{"t_pts": 178.0, "type": "possession_start", "team": "home"}
+{"t_pts": 177.5, "type": "possession_start", "team": "home"}
 {"t_pts": 182.0, "type": "score_change", "team": "away", "points": 2}
 {"t_pts": 197.6, "type": "shot_attempt", "team": "home", "zone": "two"}
 {"t_pts": 198.2, "type": "shot_missed", "team": "home"}

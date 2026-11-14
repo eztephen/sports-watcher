@@ -13,11 +13,11 @@
   "truth_uncertain": [
     "the possession running when the clip starts (Converge, shot clock at 11) has no possession_start in the truth",
     "score_change is dated at the first frame the new digits are readable: the 105 to 108 change happens under the sponsor banner and is first visible at 10.0 s; the others come out of a +2 animation, faint for half a second (23.5, 43.0, 54.0 s)",
-    "possession starts after made baskets are the inbound pass, read from 1 s sheets (+/-1 s); the one at 5.5 s is during a close-up and is a guess between 4.5 and 9 s; Converge takes about 8 s to inbound after the basket at 48 s (shot clock starts at 56.5 s)",
     "46.75 s: a Rain or Shine driver goes up and drops the ball off; listed as one attempt by the receiver at 48.0 s (the shot clock runs through, so nothing touched the rim before it)",
     "67.4 s: Converge layup off the rim; the shot clock shows 14 at 70 s and 24 at 71 s, so there may be a Converge tip before Rain or Shine's #3 takes the rebound at 68.7 s. No second attempt is listed",
     "98.5 s: a Rain or Shine layup blocked at the rim, the ball goes out off Converge at 100.5 s and Rain or Shine keeps it (shot clock stays at 18); listed as an attempt and a miss, no rebound",
     "the timeout is dated at the dead ball (101.0 s); which team called it and when the referee granted it cannot be seen",
-    "zones are read by eye"
+    "zones are read by eye",
+    "a possession after a made basket starts when the other team picks the ball up, not at the inbound pass (convention set on 2026-11-14); re-dated on 0.4 s frames: 4.8, 19.2, 37.3 and 49.8 s (drafted as the inbound: 5.5, 21.0, 39.0, 56.0 s). +/-0.4 s"
   ]
 }
