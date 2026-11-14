@@ -118,3 +118,101 @@ def test_jersey_features_split_white_from_blue_kits():
     assert a.fitted
     assert {a.team_of(i) for i in range(20)} == {"home"}
     assert {a.team_of(100 + i) for i in range(20)} == {"away"}
+
+
+WHITE_KIT, BLUE_KIT = (245, 245, 245), (200, 60, 30)  # BGR
+
+
+def _side_on_crop(jersey_bgr, rng, floor=(120, 170, 200)):
+    """A player seen side-on: the shirt is a narrow strip and the floor fills most of the torso window."""
+    crop = np.full((120, 48, 3), floor, np.uint8)  # wooden floor unless painted
+    crop[10:28, 18:30] = (120, 150, 200)  # head
+    crop[28:90, 19:29] = jersey_bgr
+    crop[90:118, 19:29] = (110, 140, 190)  # legs
+    return np.clip(crop.astype(int) + rng.integers(-12, 13, crop.shape), 0, 255).astype(np.uint8)
+
+
+def _two_kit_crop(rng):
+    crop = _player_crop(WHITE_KIT, rng)
+    crop[28:70, 12:24] = BLUE_KIT  # a second player across half the torso window
+    return crop
+
+
+def _fitted_kits(rng, **kw):
+    from sports_watcher.perception.team import KitAssigner
+
+    a = KitAssigner(parse_color("white"), parse_color("navy"), fit_after=60, **kw)
+    for i in range(15):
+        a.observe(i, _player_crop(WHITE_KIT, rng), 0.0)
+        a.observe(100 + i, _player_crop(BLUE_KIT, rng), 0.0)
+        a.observe(200 + i, _side_on_crop(WHITE_KIT, rng), 0.0)
+        a.observe(300 + i, _side_on_crop(BLUE_KIT, rng), 0.0)
+    assert a.fitted
+    return a
+
+
+def test_kit_assigner_is_unknown_before_the_fit_then_names_both_kits():
+    from sports_watcher.perception.team import KitAssigner
+
+    rng = np.random.default_rng(0)
+    a = KitAssigner(parse_color("white"), parse_color("navy"), fit_after=10**6)
+    a.observe(1, _player_crop(WHITE_KIT, rng), 0.0)
+    assert a.fitted is False and a.team_of(1) == "unknown"
+    a = _fitted_kits(rng)
+    assert {a.team_of(i) for i in range(15)} == {"home"}
+    assert {a.team_of(100 + i) for i in range(15)} == {"away"}
+
+
+def test_floor_in_the_torso_window_does_not_read_as_the_white_kit():
+    rng = np.random.default_rng(0)
+    old = TeamAssigner(__import__("sports_watcher.perception.team", fromlist=["x"]).jersey_features, parse_color("white"), parse_color("navy"), fit_after=60)
+    for i in range(15):
+        old.observe(i, _player_crop(WHITE_KIT, rng), 0.0)
+        old.observe(100 + i, _player_crop(BLUE_KIT, rng), 0.0)
+        old.observe(200 + i, _side_on_crop(WHITE_KIT, rng), 0.0)
+        old.observe(300 + i, _side_on_crop(BLUE_KIT, rng), 0.0)
+    assert "home" in {old.team_of(300 + i) for i in range(15)}  # the median colour is the floor's
+    a = _fitted_kits(np.random.default_rng(0))
+    assert {a.team_of(300 + i) for i in range(15)} == {"away"}
+    assert {a.team_of(200 + i) for i in range(15)} == {"home"}
+
+
+def test_a_crop_with_both_kits_or_neither_does_not_vote():
+    rng = np.random.default_rng(0)
+    a = _fitted_kits(rng)
+    a.observe(500, _two_kit_crop(rng), 10.0)
+    assert a.team_of(500) == "unknown"
+    a.observe(501, np.full((120, 48, 3), (120, 170, 200), np.uint8), 10.0)  # floor only
+    assert a.team_of(501) == "unknown"
+    a.observe(500, _player_crop(WHITE_KIT, rng), 10.1)  # the abstention did not use the sample slot
+    assert a.team_of(500) == "home"
+
+
+def test_kit_assigner_keeps_the_majority_and_samples_once_a_second():
+    rng = np.random.default_rng(0)
+    a = _fitted_kits(rng)
+    for i in range(5):
+        a.observe(600, _player_crop(BLUE_KIT, rng), 10.0 + i)
+    a.observe(600, _player_crop(WHITE_KIT, rng), 15.0)
+    assert a.team_of(600) == "away"
+    a.observe(700, _player_crop(BLUE_KIT, rng), 20.0)
+    a.observe(700, _player_crop(WHITE_KIT, rng), 20.5)  # inside the second: not sampled
+    assert a.team_of(700) == "away"
+
+
+def test_kit_assigner_reset_forgets_everything():
+    a = _fitted_kits(np.random.default_rng(0))
+    a.reset()
+    assert a.fitted is False and a.team_of(0) == "unknown"
+
+
+def test_white_court_paint_behind_a_player_is_not_his_kit():
+    rng = np.random.default_rng(0)
+    a = _fitted_kits(rng)
+    for i in range(3):  # a blue dribbler leaning over the white centre logo
+        a.observe(900, _side_on_crop(BLUE_KIT, rng, floor=WHITE_KIT), 40.0 + i)
+    assert a.team_of(900) == "away"
+    a.observe(901, _side_on_crop(WHITE_KIT, rng, floor=WHITE_KIT), 40.0)  # nothing tells shirt from paint
+    assert a.team_of(901) == "unknown"
+    a.observe(902, _side_on_crop(WHITE_KIT, rng, floor=BLUE_KIT), 40.0)  # white shirt over blue paint
+    assert a.team_of(902) == "home"

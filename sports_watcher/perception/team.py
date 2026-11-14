@@ -4,7 +4,15 @@ the operator's jersey colours. Referees never enter: the detector names them.
 The perceiver clusters the torso colour (``jersey_features``). SigLIP embeddings of whole
 crops were tried first and split the players of a PBA broadcast at random with respect to
 the kit (51 % agreement with the jersey colour on 1,098 crops), while the torso colour
-separated the two kits cleanly."""
+separated the two kits cleanly.
+
+``KitAssigner`` is the reading the perceiver uses when the operator gives both colours.
+The median torso colour of ``TeamAssigner`` puts the white kit's centre on the colour of
+the floor (Lab lightness 176 on a PBA broadcast, the shirts are at 230), so a crop with
+floor in the torso window reads as the white kit: 12 wrong in 248 hand-labelled crops.
+``KitAssigner`` learns a small palette from torso pixels, names the two entries nearest
+the operator's colours as the kits, and lets a crop vote only when one kit holds most of
+its kit-coloured pixels: 1 wrong in 217 on the same crops, the rest abstain."""
 
 from __future__ import annotations
 
@@ -35,6 +43,14 @@ NAMED_COLORS: dict[str, tuple[int, int, int]] = {  # RGB
     "grey": (128, 128, 128),
 }
 MAX_SAMPLES = 2000
+PALETTE_SIZE = 5  # two kits, floor, skin, shadow
+PALETTE_MERGE = 20.0  # palette entries this close to a kit's entry count as that kit
+PIXELS_PER_CROP = 400
+FIT_PIXELS_PER_CROP = 100
+KIT_SHARE = 0.7  # of a crop's kit-coloured pixels, the share one kit needs to get the vote
+MIN_KIT_PIXELS = 0.15  # of the torso window that must be kit-coloured at all
+BORDER = 0.08  # the box's outer columns, at torso height, show what is behind the player
+BACKGROUND_SHARE = 0.5  # a kit colour filling this much of the border is paint, not a shirt
 SIGLIP_SIZE = 224
 
 
@@ -161,6 +177,131 @@ class TeamAssigner:
         self._labels = [int(v) for v in labels]
         self._last_fit_pts = t_pts
         self._fit_size = len(self._embeddings)
+
+
+def torso_pixels(crop_bgr: np.ndarray, limit: int = PIXELS_PER_CROP) -> np.ndarray:
+    """Lab pixels of the torso window (rows 25 to 55 %, columns 25 to 75 %), at most
+    ``limit`` of them, taken at a fixed stride."""
+    h, w = crop_bgr.shape[:2]
+    window = crop_bgr[int(h * 0.25) : max(int(h * 0.55), int(h * 0.25) + 1), int(w * 0.25) : max(int(w * 0.75), int(w * 0.25) + 1)]
+    lab = cv2.cvtColor(np.ascontiguousarray(window), cv2.COLOR_BGR2LAB).reshape(-1, 3)
+    return lab[:: max(1, -(-len(lab) // limit))][:limit]
+
+
+def border_pixels(crop_bgr: np.ndarray, limit: int = PIXELS_PER_CROP // 4) -> np.ndarray:
+    """Lab pixels of the box's outer columns at torso height: the background."""
+    h, w = crop_bgr.shape[:2]
+    rows = slice(int(h * 0.25), max(int(h * 0.55), int(h * 0.25) + 1))
+    edge = max(1, int(w * BORDER))
+    strip = np.concatenate([crop_bgr[rows, :edge], crop_bgr[rows, w - edge :]], axis=1)
+    lab = cv2.cvtColor(np.ascontiguousarray(strip), cv2.COLOR_BGR2LAB).reshape(-1, 3)
+    return lab[:: max(1, -(-len(lab) // limit))][:limit]
+
+
+class KitAssigner:
+    """Team of a track by the share of kit-coloured pixels in its crops.
+
+    Same interface as ``TeamAssigner``. A sample that shows both kits, or too little of
+    either, casts no vote and does not use the track's sampling slot."""
+
+    def __init__(
+        self,
+        home_lab: np.ndarray,
+        away_lab: np.ndarray,
+        fit_after: int = 200,
+        refit_every_s: float = 30.0,
+        sample_every_s: float = 1.0,
+    ) -> None:
+        self._home, self._away = np.asarray(home_lab, dtype=float), np.asarray(away_lab, dtype=float)
+        self.fit_after = fit_after
+        self.refit_every_s = refit_every_s
+        self.sample_every_s = sample_every_s
+        self.reset()
+
+    def reset(self) -> None:
+        self._pixels: list[tuple[np.ndarray, np.ndarray]] = []  # (torso, border) per sample
+        self._track_of: list[int] = []
+        self._votes: list[Team] = []
+        self._last_sample: dict[int, float] = {}
+        self._palette: np.ndarray | None = None
+        self._kit_of: np.ndarray | None = None  # per palette entry: 0 home, 1 away, -1 neither
+        self._last_fit_pts: float | None = None
+        self._fit_size = 0
+
+    @property
+    def fitted(self) -> bool:
+        return self._kit_of is not None
+
+    def observe(self, track_id: int, crop_bgr: np.ndarray, t_pts: float, clean: bool = True) -> None:
+        last = self._last_sample.get(track_id)
+        if last is not None and t_pts - last < self.sample_every_s:
+            return
+        pixels = (torso_pixels(crop_bgr), border_pixels(crop_bgr))
+        vote = self.read(*pixels)
+        if self.fitted and vote == "unknown":
+            return  # both kits or neither in the window: try again on a later frame
+        self._last_sample[track_id] = t_pts
+        self._pixels.append(pixels)
+        self._track_of.append(track_id)
+        self._votes.append(vote)
+        if len(self._pixels) > MAX_SAMPLES:
+            drop = len(self._pixels) - MAX_SAMPLES
+            del self._pixels[:drop], self._track_of[:drop], self._votes[:drop]
+        n = len(self._pixels)
+        due = self._last_fit_pts is not None and t_pts - self._last_fit_pts >= self.refit_every_s
+        if (self._palette is None and n >= self.fit_after) or (due and n > self._fit_size):
+            self._fit(t_pts)
+
+    def read_crop(self, crop_bgr: np.ndarray) -> Team:
+        return self.read(torso_pixels(crop_bgr), border_pixels(crop_bgr))
+
+    def read(self, pixels: np.ndarray, border: np.ndarray | None = None) -> Team:
+        """The kit of one crop's torso pixels, ``unknown`` when it cannot be told. A kit
+        colour that fills the border is court paint behind the player and does not count:
+        a dribbler leaning over the white centre logo read as the white kit."""
+        if self._palette is None or self._kit_of is None or len(pixels) == 0:
+            return "unknown"
+        kit = self._kits(pixels)
+        home, away = int((kit == 0).sum()), int((kit == 1).sum())
+        if border is not None and len(border):
+            behind = self._kits(border)
+            if (behind == 0).mean() >= BACKGROUND_SHARE:
+                home = 0
+            if (behind == 1).mean() >= BACKGROUND_SHARE:
+                away = 0
+        if home + away < MIN_KIT_PIXELS * len(pixels):
+            return "unknown"
+        if home >= KIT_SHARE * (home + away):
+            return "home"
+        if away >= KIT_SHARE * (home + away):
+            return "away"
+        return "unknown"
+
+    def _kits(self, pixels: np.ndarray) -> np.ndarray:
+        nearest = np.linalg.norm(pixels[:, None, :].astype(float) - self._palette[None, :, :], axis=2).argmin(axis=1)
+        return self._kit_of[nearest]
+
+    def team_of(self, track_id: int) -> Team:
+        votes = [v for tid, v in zip(self._track_of, self._votes, strict=True) if tid == track_id and v != "unknown"]
+        return max(set(votes), key=votes.count) if votes else "unknown"
+
+    def _fit(self, t_pts: float) -> None:
+        sample = np.concatenate([p[:: max(1, len(p) // FIT_PIXELS_PER_CROP)] for p, _ in self._pixels]).astype(float)
+        self._last_fit_pts, self._fit_size = t_pts, len(self._pixels)
+        if len(sample) < PALETTE_SIZE:
+            return
+        palette = KMeans(n_clusters=PALETTE_SIZE, n_init=4, random_state=0).fit(sample).cluster_centers_
+        home = int(np.linalg.norm(palette - self._home, axis=1).argmin())
+        away = int(np.linalg.norm(palette - self._away, axis=1).argmin())
+        if home == away:
+            return  # the palette does not tell the kits apart yet: keep the previous one
+        kit_of = np.full(PALETTE_SIZE, -1)
+        for k in range(PALETTE_SIZE):
+            d_home, d_away = np.linalg.norm(palette[k] - palette[home]), np.linalg.norm(palette[k] - palette[away])
+            if min(d_home, d_away) <= PALETTE_MERGE:
+                kit_of[k] = 0 if d_home <= d_away else 1
+        self._palette, self._kit_of = palette, kit_of
+        self._votes = [self.read(*p) for p in self._pixels]
 
 
 class SiglipEmbedder:

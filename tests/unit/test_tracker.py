@@ -49,6 +49,54 @@ def test_crossing_players_keep_their_ids():
     assert first[1] < first[2] and last[1] > last[2]
 
 
+def _swap_scene(tr, first_kit, second_kit, frames_second=6):
+    """A player stands still for six frames, then his detection is replaced by one at
+    almost the same place: what the detector gives when a defender steps in front."""
+    ids = []
+    for i in range(6):
+        out = tr.update([Detection(_box(100, 100), "player", 0.9, kit=first_kit)], i / 30)
+        ids.append([t.track_id for t in out])
+    for i in range(6, 6 + frames_second):
+        out = tr.update([Detection(_box(108, 100), "player", 0.9, kit=second_kit)], i / 30)
+        ids.append([t.track_id for t in out])
+    return ids
+
+
+def test_a_track_does_not_jump_to_a_player_of_the_other_kit():
+    ids = _swap_scene(Tracker(), "home", "away")
+    assert ids[5] == [1]
+    assert all(1 not in frame for frame in ids[6:])  # the old id never sits on the other kit
+    assert ids[-1] == [2]  # the second player is a track of his own
+
+
+def test_without_a_kit_the_nearest_box_keeps_the_id():
+    assert _swap_scene(Tracker(), None, None)[-1] == [1]
+    assert _swap_scene(Tracker(), "home", None)[-1] == [1]  # an unreadable crop still matches
+    assert _swap_scene(Tracker(), None, "away")[-1] == [1]
+
+
+def test_one_stray_kit_reading_does_not_lock_a_track():
+    tr = Tracker()
+    tr.update([Detection(_box(100, 100), "player", 0.9, kit="home")], 0.0)  # one bad crop
+    ids = []
+    for i in range(1, 8):
+        out = tr.update([Detection(_box(100, 100), "player", 0.9, kit="away")], i / 30)
+        ids.append([t.track_id for t in out])
+    assert ids[-1] == [1]
+
+
+def test_a_refused_match_leaves_the_track_for_its_own_player():
+    tr = Tracker()
+    for i in range(6):
+        tr.update([Detection(_box(100, 100), "player", 0.9, kit="home")], i / 30)
+    for i in range(6, 12):  # hidden behind an away player for six frames
+        tr.update([Detection(_box(108, 100), "player", 0.9, kit="away")], i / 30)
+    out = tr.update(
+        [Detection(_box(108, 100), "player", 0.9, kit="away"), Detection(_box(90, 100), "player", 0.9, kit="home")], 12 / 30
+    )
+    assert {t.track_id: round(t.box[0]) for t in out} == {2: 108, 1: 90}
+
+
 def test_ball_filter_predicts_and_drops():
     bf = BallFilter()
     for i in range(10):

@@ -630,3 +630,49 @@ No production code changed; `models/court` is absent again.
   colour before the tracker can lean on it (pixels near neither kit left out, or a small
   trained classifier), and the swaps themselves need appearance in the association cost
   as a soft term, not a gate. Neither is started.
+
+## Kit read from kit-coloured pixels, kit gate in the tracker (2026-11-14)
+
+- 300 player crops from the two clips labelled by eye (130 white, 118 blue, 34 unclear,
+  11 non-players, 7 referees; `tmp/kitset`, not tracked). The median torso colour is
+  right on 236 of the 248 clear crops (95.2 %) and votes on every unclear one. Its
+  "white" centre is Lab (187, 131, 119), the floor; the shirts are at 230.
+- `KitAssigner` (used when the operator gives both colours): a five-colour palette from
+  torso pixels, the entries nearest the operator's colours are the kits, a crop votes for
+  a kit that holds 70 % of its kit-coloured pixels and abstains otherwise. Held out (fit
+  on one clip, scored on the other): 103 of 103 on Q3, 113 of 115 on the vision clip,
+  abstaining on about 13 % of clear crops.
+- A kit colour that fills the outer columns of the box is the court behind the player
+  and is not counted: a Converge dribbler leaning over the white centre logo read as the
+  white kit (150 s of the vision clip). With this the reading abstains more (188 of 248
+  clear crops voted, 3 wrong).
+- The tracker refuses a detection whose crop reads as the other kit once a track's kit
+  leads by two readings. With the old reading this regressed the vision clip (previous
+  section); with the new one it does not.
+- Scores, true / false / missed (baseline is the committed code before this change):
+
+  | | vision shot_attempt | vision possession_start | Q3 shot_attempt | Q3 possession_start |
+  |---|---|---|---|---|
+  | baseline | 5 / 0 / 0 | 5 / 1 / 1 | 5 / 2 / 6 | 3 / 7 / 6 |
+  | new reading alone | 5 / 0 / 0 | 4 / 3 / 2 | 5 / 3 / 6 | 3 / 9 / 6 |
+  | + kit gate | 5 / 0 / 0 | 4 / 3 / 2 | 6 / 1 / 5 | 4 / 5 / 5 |
+  | + gate, no votes on close-ups | 4 / 2 / 1 | 3 / 4 / 3 | 6 / 1 / 5 | 4 / 5 / 5 |
+  | + gate, court-paint check (committed) | 5 / 0 / 0 | 5 / 1 / 1 | 6 / 3 / 5 | 5 / 4 / 4 |
+
+  Makes, free throws and score changes are the same in every row. "No votes on
+  close-ups" was tried and dropped: the camera hint lags the cut, tracks go without votes
+  at the start of a main-camera stretch.
+- Costs of the committed row on Q3: two false shot attempts beside the real three at
+  113.4 s (110.92 s away, 113.12 s no team), and a second false turnover confirmed
+  (124.25 s, with 192.83 s). The 46.7 s shot is now Rain or Shine's and the false turnover
+  at 41.57 s is gone; the 197.5 s shot is still credited to Converge. The palette and the
+  thresholds were chosen on crops from these two clips, so Q3 is no longer an untouched
+  clip for team labels.
+- Suites: 268 unit tests, ruff clean, integration passes, golden 9 of 10 (camera accuracy
+  on `pba_ros_cvg_q1`, 0.866 against 0.9, as before). `pba_ros_cvg_2700`: one timeout,
+  confirmed.
+- Tooling: `tmp/perceive_memo.py` runs `scripts/perceive.py` with every ONNX call
+  memoised in `data/cache/onnx_memo/memo.sqlite` (key: model file and the input tensor's
+  sha1). A Q3 rebuild drops from 55 minutes to under 3 once recorded; all four golden
+  clips are recorded. Re-running the tracker over cached track boxes is not a valid
+  shortcut; this is.

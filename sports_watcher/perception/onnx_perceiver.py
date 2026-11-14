@@ -24,6 +24,7 @@ from sports_watcher.perception.court import (
 from sports_watcher.perception.detector import OnnxDetector, OnnxKeypointModel
 from sports_watcher.perception.models import ModelSet, settings_version
 from sports_watcher.perception.team import (
+    KitAssigner,
     SiglipEmbedder,
     TeamAssigner,
     jersey_features,
@@ -87,15 +88,21 @@ class OnnxPerceiver:
             template=hashlib.sha256(template_text.encode()).hexdigest()[:12],
             keypoint_every_s=keypoint_every_s,
             probe_every_s=probe_every_s,
-            team_features="torso-lab",
+            team_features="kit-palette-gate-bg" if home_color and away_color else "torso-lab",
         )
 
         self._embed: SiglipEmbedder | None = SiglipEmbedder(models.siglip, providers) if models.siglip else None
-        self._team: TeamAssigner | None = TeamAssigner(
-            jersey_features,
-            parse_color(home_color) if home_color else None,
-            parse_color(away_color) if away_color else None,
-        )
+        # Both colours given: read the kit from kit-coloured pixels. Otherwise cluster the
+        # torso's median colour, which needs no colours but mistakes the floor for a kit.
+        self._team: KitAssigner | TeamAssigner | None
+        if home_color and away_color:
+            self._team = KitAssigner(parse_color(home_color), parse_color(away_color))
+        else:
+            self._team = TeamAssigner(
+                jersey_features,
+                parse_color(home_color) if home_color else None,
+                parse_color(away_color) if away_color else None,
+            )
         self._probe: CameraProbe | None = None
         if models.camera_probe is not None and self._embed is not None:
             self._probe = CameraProbe.load(models.camera_probe)
@@ -121,6 +128,7 @@ class OnnxPerceiver:
         t, img = frame.pts_s, frame.image
         dets = self._timed("detector", self._detector.detect, img)
         people = [d for d in dets if d.cls in ("player", "referee")]
+        self._timed("team", self._read_kits, img, people)
         raw_tracks = self._timed("tracker", self._tracker.update, people, t)
         rim = self._update_rim([d for d in dets if d.cls == "rim"], t)
         ball = self._update_ball(img, dets, t)
@@ -172,6 +180,20 @@ class OnnxPerceiver:
             self._court.update(kp_xy, kp_conf, t)
             self._last_kp_pts = t
         return self._court.current(t)
+
+    def _read_kits(self, img: np.ndarray, people: list[Detection]) -> None:
+        """Name the kit of each player detection, for the tracker's kit gate."""
+        if not isinstance(self._team, KitAssigner) or not self._team.fitted:
+            return
+        h, w = img.shape[:2]
+        for d in people:
+            if d.cls != "player":
+                continue
+            x1, y1, x2, y2 = (int(max(0, d.box[0])), int(max(0, d.box[1])), int(min(w, d.box[2])), int(min(h, d.box[3])))
+            if x2 <= x1 + 1 or y2 <= y1 + 1:
+                continue
+            kit = self._team.read_crop(img[y1:y2, x1:x2])
+            d.kit = kit if kit != "unknown" else None
 
     def _build_tracks(self, img: np.ndarray, raw, homography: Homography | None, t: float) -> list[Track]:
         tracks: list[Track] = []

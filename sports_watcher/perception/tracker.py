@@ -3,6 +3,11 @@
 Players: one SORT Kalman filter per track, IoU plus an observation-centric momentum cost,
 Hungarian assignment, and a velocity re-seed when a track is re-associated after a gap.
 Ball: a constant-velocity filter in image space that predicts through dropouts.
+
+A detection may carry the kit read from its crop. A track whose kit is settled does not
+take a detection of the other kit, however well the boxes overlap: in a crowd the box of
+a defender stepping in front otherwise inherits the ball handler's id, and with it his
+team. The refused detection starts a track of its own.
 """
 
 from __future__ import annotations
@@ -22,6 +27,10 @@ class Detection:
     box: Box
     cls: str
     confidence: float
+    kit: str | None = None  # the kit read from the crop, None when it cannot be told
+
+
+KIT_LEAD = 2  # readings one kit must lead by before a track refuses the other
 
 
 @dataclass(slots=True)
@@ -85,6 +94,14 @@ class _Track:
     hits: int = 1
     published: bool = False
     history: list[tuple[float, Box]] = field(default_factory=list)  # (pts, observed box)
+    kit_votes: dict[str, int] = field(default_factory=dict)
+
+    def kit(self) -> str | None:
+        """The kit this track has been read as, once it leads every other by ``KIT_LEAD``."""
+        ranked = sorted(self.kit_votes.items(), key=lambda kv: -kv[1])
+        if not ranked or ranked[0][1] - (ranked[1][1] if len(ranked) > 1 else 0) < KIT_LEAD:
+            return None
+        return ranked[0][0]
 
     def predicted_box(self) -> Box:
         return _to_box(self.kf.x[:, 0])
@@ -129,7 +146,10 @@ class Tracker:
         for di in unmatched_dets:
             d = dets[di]
             self._tracks.append(
-                _Track(self._next_id, _new_kf(d.box), d.cls, d.confidence, d.box, t_pts, history=[(t_pts, d.box)])
+                _Track(
+                    self._next_id, _new_kf(d.box), d.cls, d.confidence, d.box, t_pts,
+                    history=[(t_pts, d.box)], kit_votes={d.kit: 1} if d.kit else {},
+                )
             )
             self._next_id += 1
         self._tracks = [tr for tr in self._tracks if t_pts - tr.last_update_pts <= self.max_age_s]
@@ -155,6 +175,7 @@ class Tracker:
         for ti, tr in enumerate(self._tracks):
             pred = tr.predicted_box()
             direction = tr.direction()
+            kit = tr.kit()
             last_c = ((tr.last_obs[0] + tr.last_obs[2]) / 2, (tr.last_obs[1] + tr.last_obs[3]) / 2)
             for di, d in enumerate(dets):
                 overlap = iou(pred, d.box)
@@ -165,7 +186,8 @@ class Tracker:
                     if n > 1e-6:
                         c -= self.velocity_weight * (dc[0] * direction[0] + dc[1] * direction[1]) / n
                 cost[ti, di] = c
-                gate[ti, di] = overlap >= self.iou_threshold and tr.cls == d.cls
+                other_kit = kit is not None and d.kit is not None and d.kit != kit
+                gate[ti, di] = overlap >= self.iou_threshold and tr.cls == d.cls and not other_kit
         cost[~gate] = 1e6
         rows, cols = linear_sum_assignment(cost)
         matches = [(int(r), int(c)) for r, c in zip(rows, cols, strict=True) if gate[r, c]]
@@ -188,6 +210,8 @@ class Tracker:
         tr.confidence = d.confidence
         tr.last_update_pts = t_pts
         tr.hits += 1
+        if d.kit:
+            tr.kit_votes[d.kit] = tr.kit_votes.get(d.kit, 0) + 1
         tr.history.append((t_pts, d.box))
         del tr.history[:-10]
 
