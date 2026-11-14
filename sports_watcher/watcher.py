@@ -6,6 +6,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Iterator, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -45,6 +46,9 @@ class WatcherStatus(BaseModel):
     events_emitted: int
     error: str | None
     camera_state: str = "main"
+
+
+LIVE_OCR_EVERY_S = 0.2  # live sources: the scoreboard is read on stream time
 
 
 class GameWatcher:
@@ -112,6 +116,12 @@ class GameWatcher:
         self._backoff = reconnect_backoff_s
         self._last_t_pts = 0.0
         self._last_wall = datetime.now(UTC)
+        # live sources: perception runs on a worker, observations wait for it in order
+        self._live = False
+        self._last_ocr_pts: float | None = None
+        self._pending: list[tuple[Frame, object]] = []
+        self._vision_pool: ThreadPoolExecutor | None = None
+        self._vision_job: tuple[int, Future] | None = None
 
     # -- lifecycle ----------------------------------------------------------------------
 
@@ -160,12 +170,18 @@ class GameWatcher:
             self._ensure_engine(source)
             self._reset_perception()
             self._set_state("running")
+            self._live = source.latency_class != LatencyClass.FILE
             for frame, dropped in self._frame_stream(source):
                 if self._stop.is_set():
                     break
-                self._process(frame, dropped)
+                if self._live:
+                    self._process_live(frame, dropped)
+                else:
+                    self._process(frame, dropped)
+            self._drain_live()
             return None
         except Exception as exc:  # noqa: BLE001
+            self._abandon_live()
             return exc
         finally:
             source.close()
@@ -204,14 +220,86 @@ class GameWatcher:
             # set on live containers) before the source is closed behind it.
             reader.stop(join_timeout=READ_TIMEOUT_S + 2.0)
 
-    def _process(self, frame: Frame, dropped: int) -> None:
-        assert self._engine is not None
+    def _count(self, dropped: int) -> None:
         self._frames_dropped += dropped
         self._frames_processed += 1
         self._frames_since_reconnect += 1
         if self._frames_since_reconnect >= self.healthy_frames_to_reset:
             self._consecutive_failures = 0
             self._backoff = self.reconnect_backoff_s
+
+    def _process_live(self, frame: Frame, dropped: int) -> None:
+        """A live frame: the scoreboard on stream time, perception on a worker.
+
+        Perception costs many frame intervals on a CPU. Run inline it starved the
+        scoreboard (one read every 2.9 s, score changes retracted by TTL). Here the loop
+        reads the scoreboard every ``LIVE_OCR_EVERY_S`` and hands the newest frame to the
+        worker when it is free; observations wait until the vision for an earlier frame
+        is in, so the engine still sees them in stream order with each vision frame on
+        its own observation. Events come out later by at most one perception."""
+        assert self._engine is not None
+        self._count(dropped)
+        scoreboard = None
+        if self._last_ocr_pts is None or frame.pts_s - self._last_ocr_pts >= LIVE_OCR_EVERY_S - 1e-9:
+            scoreboard = self._scoreboard_reader().read(frame.image)
+            self._last_ocr_pts = frame.pts_s
+        if self._perceiver is None:
+            self._step(frame, scoreboard, None)
+            return
+        self._pending.append((frame, scoreboard))
+        if self._vision_job is not None and self._vision_job[1].done():
+            self._flush_vision()
+        if self._vision_job is None:
+            if self._vision_pool is None:
+                self._vision_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="perceiver")
+            self._vision_job = (frame.index, self._vision_pool.submit(self._perceiver.perceive, frame))
+
+    def _flush_vision(self) -> None:
+        """Step every waiting observation up to the frame the finished perception was for."""
+        assert self._vision_job is not None
+        index, job = self._vision_job
+        self._vision_job = None
+        vision = job.result()  # a perceiver error ends the run like any other
+        keep = []
+        for frame, scoreboard in self._pending:
+            if frame.index > index:
+                keep.append((frame, scoreboard))
+                continue
+            self._step(frame, scoreboard, vision if frame.index == index else None)
+        self._pending = keep
+
+    def _drain_live(self) -> None:
+        """The stream ended: wait for the perception in flight, then step what is left."""
+        if self._vision_job is not None:
+            self._flush_vision()
+        for frame, scoreboard in self._pending:
+            self._step(frame, scoreboard, None)
+        self._pending = []
+
+    def _abandon_live(self) -> None:
+        """The stream failed: let the worker finish, drop its result and the waiting frames."""
+        if self._vision_job is not None:
+            self._vision_job[1].exception()  # wait for it; the stream error is the one reported
+            self._vision_job = None
+        self._pending = []
+
+    def _step(self, frame: Frame, scoreboard, vision) -> None:
+        assert self._engine is not None
+        if vision is not None:
+            state = self._camera.update(vision.camera_hint, vision.camera_confidence, frame.pts_s)
+            if self.log_camera_states:
+                self.camera_log.append((frame.pts_s, state))
+        self._engine.step(
+            Observation(
+                frame_index=frame.index, t_pts=frame.pts_s, t_wall=frame.wall, scoreboard=scoreboard,
+                camera_state=self._camera.state, vision=vision,
+            )
+        )
+        self._last_t_pts, self._last_wall = frame.pts_s, frame.wall
+
+    def _process(self, frame: Frame, dropped: int) -> None:
+        assert self._engine is not None
+        self._count(dropped)
         scoreboard = None
         if (self._frames_processed - 1) % self.ocr_every_n_frames == 0:
             scoreboard = self._scoreboard_reader().read(frame.image)
@@ -262,6 +350,7 @@ class GameWatcher:
             self._perceiver.reset()
         self._camera.reset()
         self._first_pts = None
+        self._last_ocr_pts = None
 
     # -- helpers --------------------------------------------------------------------------
 

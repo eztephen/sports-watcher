@@ -1007,3 +1007,31 @@ No production code changed; `models/court` is absent again.
   on a crop); perception on its own thread at whatever rate it reaches, with the rules'
   time constants in seconds; one detector pass instead of two (the ball crop pass is half
   the cost); a GPU. None is started.
+
+## Live sources: scoreboard on stream time, perception on a worker (2026-11-14)
+
+- `GameWatcher._process_live`, for sources that are not files: the scoreboard is read
+  every 0.2 s of stream time; perception runs on a one-thread pool on the newest frame
+  whenever it is free; observations queue until the perception for an earlier frame is
+  in and are then stepped in stream order, the vision frame on its own observation —
+  cost: events are emitted up to one perception (0.5 s on the Mac) later. File sources
+  go through `_process` as before, frame for frame.
+- Tests first (`tests/unit/test_watcher_live.py`, a push stub ten times faster than its
+  timestamps and a perceiver that sleeps): 30 or more reads in 10 s of stream with a
+  score change confirmed (2 reads before), vision on its own frame and in order, reads
+  0.2 s apart with no perceiver.
+- The same live-style run of Q4 over UDP, before and after:
+
+  | | before | after |
+  |---|---|---|
+  | score_change (truth 4) | 0 confirmed, 2 retracted by TTL | 3 confirmed |
+  | shot_made (truth 4) | 2 | 3, the right teams |
+  | timeout (truth 1) | confirmed | confirmed |
+  | shot_attempt, miss, rebound from vision | none | none |
+
+  Times are 1.4 to 1.9 s after the file's (MPEG-TS start offset plus the read). The first
+  score change (10.0 s) falls in the stream's first seconds and is missed in both runs.
+- Vision is unchanged at about 2 frames a second: no holder, no release. That needs
+  speed (one detector pass, a GPU), not scheduling.
+- Suites: 294 unit tests, ruff clean. Golden and integration not rerun: file sources do
+  not take the new path.
