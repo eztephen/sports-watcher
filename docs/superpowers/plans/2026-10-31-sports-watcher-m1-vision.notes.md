@@ -982,3 +982,28 @@ No production code changed; `models/court` is absent again.
 - Reading: the scoreboard side and the made baskets carry over to another venue and
   other colours. Whether attempts, misses and possessions do is not known; that needs
   truth drafted by someone who can watch the clip at speed.
+
+## Live speed: the watcher cannot keep up on this Mac (2026-11-14)
+
+- `scripts/bench_perceiver.py` on `pba_ros_cvg_q4`, 100 frames, CoreML/CPU on the M-series
+  laptop: 531 ms per perception frame (detector 245, ball crop pass 250, camera probe 89,
+  tracker and team under 1). About 1.9 frames a second against the 30 the rules assume.
+- Live-style run: the Q4 clip pushed at real-time speed as MPEG-TS over UDP
+  (`ffmpeg -re ... udp://127.0.0.1:23456`), read by `scripts/run_watch.py --source udp://...
+  --no-cache`. 9540 frames arrived, 278 were processed (1.75 a second), 9262 dropped.
+- What came out, against 31 true events: two made baskets (found from the score change),
+  one possession start, the timeout (confirmed, dated 104.07 s). Nothing else.
+  - Scoreboard: OCR runs every 5th processed frame, so once every 2.9 s live (0.17 s on a
+    file). The vote over five reads lags 8 s, both score changes seen were drafted 7.6 and
+    8.9 s late and retracted by TTL. The most reliable event type on files is the first to
+    fail live. OCR is scheduled by processed-frame count, not by time.
+  - Vision: at under 2 frames a second there is no holder (the hold test wants 0.165 s of
+    consecutive frames), no release, no ball path. No shot attempt from vision, no miss.
+  - The first 22 s were lost to decoder errors and five reconnects after joining the UDP
+    stream mid-GOP; partly an artefact of this test rig, the two score changes in that
+    stretch were missed with it.
+- So every accuracy number in these notes is a file-replay number. Live needs, in order
+  of leverage: OCR on a wall-clock schedule independent of perception (it costs a few ms
+  on a crop); perception on its own thread at whatever rate it reaches, with the rules'
+  time constants in seconds; one detector pass instead of two (the ball crop pass is half
+  the cost); a GPU. None is started.
