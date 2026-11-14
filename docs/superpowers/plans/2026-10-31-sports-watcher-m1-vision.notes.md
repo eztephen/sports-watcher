@@ -915,3 +915,24 @@ No production code changed; `models/court` is absent again.
   fitting scratch `tmp/court_fit*.py`, `tmp/court_seed.py`.
 - To resume: clicks from a person through the tool, or full labels in Roboflow; then
   `merge_keypoint_sets` and the Colab recipe in `training/README.md`.
+
+## Wrong possessions sorted by cause: no team classifier (2026-11-14)
+
+- Before training a team classifier, every possession change the state makes on Q3 and Q4
+  (21, code at e6d0ffa) was drawn with the holder's box, the labels and the ball
+  (`tmp/flip_trace.py`). Fifteen put the right team in possession. The six wrong ones:
+  - Q3 124.0 s: the right player (Rain or Shine, picking the ball up after a basket),
+    labelled away. Motion blur, and the blue out-of-bounds paint fills his torso window.
+    The only case a better crop reading would fix.
+  - Q3 131.2 s: the holder's box is a referee in a dark grey shirt, detected as a player
+    and read as the navy kit.
+  - Q3 193.1 s: a false ball at a standing Converge player's foot.
+  - Q3 56.8 s: a Rain or Shine player standing by the ball after the foul, clock stopped
+    under the banner (the gate is open there since dcaf1eb).
+  - Q4 99.8 s: a Converge defender dives after the blocked shot as it goes out of bounds
+    off him; a real touch, no possession.
+  - Q4 121.2 s: a replay close-up read as the main camera, during the timeout.
+- So the wrong team in possession has six different causes on two clips, one of them a
+  label. A trained classifier is not worth building on this evidence. The other errors
+  in `possession_start` are starts found 1.2 to 2.1 s late after baskets and rebounds
+  (Q4 37.3, 49.8, 82.8 s) and the cold start.
