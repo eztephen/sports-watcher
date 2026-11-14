@@ -807,3 +807,29 @@ No production code changed; `models/court` is absent again.
   after a basket (116.0, 102.8 s on Q3), and on the cold start.
 - Process: `tmp/clip_run.py` was once more started before a cache had its completion
   marker; see the Q4 section.
+
+## The clock gate under a sponsor banner (2026-11-14)
+
+- Four real shots on Q3 (52.4, 53.6, 54.6 s) and Q4 (92.3 s) drafted nothing: the gate
+  was shut although the rule assumes a running clock for 5 s after the bug disappears.
+- Trace: as the banner slides over the bug the OCR vote repeats the last clock value for
+  about 1.5 s with confidence falling 0.8, 0.6, 0.4. The gate asked whether the clock had
+  changed within 2 s of now, so it closed while still in state `read` (52.5 s on Q3,
+  88.0 s on Q4) and the `assumed` seconds copied the closed gate.
+- Fix in `update_clock_gate`: running means the clock had changed within 2 s of the last
+  confident read; in `assumed` the same value holds. A clock read as standing still
+  still closes the gate (test). The gate now stays open to 58.0 s on Q3 and 94.25 s on Q4.
+- Effect, true / false / missed: Q3 shot_attempt 6 / 1 / 5 to 7 / 1 / 4 (the layup, at
+  52.73 s against 52.4), shot_missed 1 / 2 / 3 to 1 / 3 / 3 (a miss at 54.23 s for that
+  layup, real on the floor but the truth lists no misses for that sequence),
+  possession_start 4 / 7 / 5 to 4 / 8 / 5 (a home start at 56.63 s during the foul). The
+  two putbacks at 53.6 and 54.6 s and Q4's 92.3 s layup are still not found: the gate is
+  open, vision records no release there. The vision clip's confirmed events and Q4 are
+  unchanged.
+- Suites: 283 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
+  accuracy on `pba_ros_cvg_q1`, as before).
+- Court labels: four attempts to label `data/labels/court_pba` automatically failed (fit
+  from the pre-labels, pan/tilt/zoom search, line-pair hypotheses with two scorings; a
+  typical frame shows one long line across the court's width, the method needs two).
+  `data/labels/court_pba/click_tool.html` and `tmp/court_clicks_to_coco.py` turn four to
+  six clicked points per frame into all keypoints; waiting on the clicks.

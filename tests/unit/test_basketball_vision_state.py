@@ -310,3 +310,38 @@ def test_the_hold_timer_restarts_when_the_nearest_player_changes():
         b.hold(0.1, players, holder_id=1 if i % 2 == 0 else 2)
     states = _states(observations(b.frames))
     assert all(s.holder is None for s in states)
+
+
+def test_a_banner_sliding_over_the_bug_does_not_stop_the_clock():
+    # One Sports: as a sponsor banner covers the score bug the OCR vote repeats the last
+    # clock value for a second and a half with falling confidence. Those are not reads of
+    # a stopped clock: the gate stays open through the five assumed seconds.
+    b = PlayBuilder(Scene(L))
+    players = {1: ("home", HOME_A), 2: ("away", AWAY_B)}
+    b.hold(12.0, players, holder_id=1)
+    obs = observations(b.frames)
+    frozen = next(o.scoreboard.clock_s for o in obs if o.t_pts >= 3.0 and o.scoreboard is not None)
+    for i, o in enumerate(obs):
+        if o.scoreboard is None or o.t_pts < 3.0:
+            continue
+        fade = 1.0 - 0.8 * (o.t_pts - 3.0)  # 0.8, 0.6, 0.4 ... at four reads a second
+        if fade > 0.0:
+            sb = o.scoreboard.model_copy(update={"clock_s": frozen, "confidence": round(max(fade, 0.0), 2)})
+        else:
+            sb = o.scoreboard.model_copy(update={"clock_s": None, "confidence": 0.0})
+        obs[i] = replace(o, scoreboard=sb)
+    by_t = {round(o.t_pts, 2): s for o, s in zip(obs, _states(obs))}
+    assert by_t[5.5].clock_running is True and by_t[5.5].clock_state in ("read", "assumed")
+    assert by_t[8.0].clock_running is True and by_t[8.0].clock_state == "assumed"
+    assert by_t[11.0].clock_running is False and by_t[11.0].clock_state == "unknown"
+
+
+def test_a_clock_read_as_standing_still_closes_the_gate():
+    b = PlayBuilder(Scene(L))
+    players = {1: ("home", HOME_A), 2: ("away", AWAY_B)}
+    b.hold(6.0, players, holder_id=1)
+    obs = observations(b.frames)
+    frozen = next(o.scoreboard.clock_s for o in obs if o.t_pts >= 2.0 and o.scoreboard is not None)
+    obs = [replace(o, scoreboard=o.scoreboard.model_copy(update={"clock_s": frozen})) if o.scoreboard is not None and o.t_pts >= 2.0 else o for o in obs]
+    states = _states(obs)
+    assert states[-1].clock_running is False and states[-1].clock_state == "read"

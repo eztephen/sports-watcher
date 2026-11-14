@@ -67,19 +67,24 @@ def update_clock_gate(prev: GameState, new: GameState, obs: Observation) -> None
             new.last_clock_step_s = before - sb.clock_s
             new.last_clock_change_value = sb.clock_s
     since_read = t - new.last_scoreboard_pts if new.last_scoreboard_pts is not None else float("inf")
-    since_change = (
-        t - new.last_clock_change_pts if new.last_clock_change_pts is not None else float("inf")
-    )
+    # The clock is running when it had changed within 2 s of the last confident read. The
+    # time since that read does not count against it: as a banner slides over the bug the
+    # OCR vote repeats the last value with falling confidence, and measuring from now
+    # closed the gate before the assumed seconds began.
+    if new.last_scoreboard_pts is not None and new.last_clock_change_pts is not None:
+        running_at_read = new.last_scoreboard_pts - new.last_clock_change_pts <= CLOCK_RUNNING_S
+    else:
+        running_at_read = False
     if since_read <= CLOCK_RUNNING_S:
         new.clock_state = "read"
-        new.clock_running = since_change <= CLOCK_RUNNING_S
+        new.clock_running = running_at_read
     elif (
         obs.camera_state == "main"
         and since_read <= CLOCK_RUNNING_S + ASSUMED_MAX_S
         and prev.clock_state in ("read", "assumed")
     ):
         new.clock_state = "assumed"
-        new.clock_running = prev.clock_running
+        new.clock_running = running_at_read
     else:
         new.clock_state = "unknown"
         new.clock_running = False
