@@ -345,3 +345,81 @@ def test_a_miss_called_after_the_lag_needs_no_next_holder():
         b.frame(S, None)
     ev = drive(observations(b.frames))
     assert len(confirmed(ev, "shot_missed")) == 1 and retracted(ev, "shot_missed") == []
+
+
+def _rule_states(shots):
+    """Feed shot records straight to the shot rules: ``(t, team)`` pairs, one per frame."""
+    from dataclasses import replace
+
+    from sports_watcher.sports.basketball.rules_shots import ShotAttemptRule, ShotOutcomeRule
+    from sports_watcher.state.game_state import GameState, RimInteraction, ShotRecord
+
+    b = PlayBuilder(Scene(L))
+    b.hold(13.0, S, holder_id=3)
+    obs = observations(b.frames)
+    attempt, outcome, drafts = ShotAttemptRule(), ShotOutcomeRule(), []
+    prev = GameState(has_vision=True, clock_running=True, clock_state="read")
+    pending = sorted(shots)
+    for o in obs:
+        new = replace(prev, t_pts=o.t_pts)
+        while pending and pending[0][0] <= o.t_pts:
+            t, team = pending.pop(0)
+            new = replace(new, last_shot=ShotRecord(t, 1, team, "two", None),
+                          rim_interaction=RimInteraction(entered_pts=t + 0.3, left_pts=t + 0.8))
+        drafts += attempt(prev, new, o) + outcome(prev, new, o)
+        prev = new
+    return drafts
+
+
+def test_two_releases_a_tenth_of_a_second_apart_are_one_shot():
+    # Fragmented tracks: the ball changes hands between two ids of one team as it goes up.
+    drafts = _rule_states([(1.0, "home"), (1.1, "home")])
+    assert [d.type for d in drafts].count("shot_attempt") == 1
+    assert [d.type for d in drafts].count("shot_missed") == 1
+
+
+def test_a_second_shot_most_of_a_second_later_is_a_putback():
+    drafts = _rule_states([(1.0, "home"), (1.8, "home")])
+    assert [d.type for d in drafts].count("shot_attempt") == 2
+
+
+def test_an_opponents_shot_right_after_is_its_own_shot():
+    drafts = _rule_states([(1.0, "home"), (1.1, "away")])
+    assert [d.type for d in drafts].count("shot_attempt") == 2
+
+
+def test_a_retracted_attempt_gets_no_miss_from_the_next_shot_at_that_rim():
+    # A lob caught by a teammate (attempt retracted: same team holds), who then shoots and
+    # misses. The rim entry is the second shot's; the lob has no miss of its own.
+    U = {1: ("home", (22.0, 7.5)), 3: ("home", (25.5, 7.0)), 2: ("away", (12.0, 6.0))}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, U, holder_id=1)
+    b.lob(1, 3, U, "right")
+    b.hold(1.0, U, holder_id=3)
+    b.shot(3, U, "right", outcome="miss")
+    b.hold(6.0, U, holder_id=2)
+    ev = drive(observations(b.frames))
+    assert retracted(ev, "shot_attempt")[0].reason == "same_team_holds"
+    assert len(confirmed(ev, "shot_attempt")) == 1 and len(provisional(ev, "shot_missed")) == 1
+
+
+def test_a_basket_long_after_an_attempt_is_not_that_attempts_make():
+    # Q3, 18.3 s: an attempt, then 13 s later the ball goes through the rim on a shot whose
+    # release was not seen. The basket is a new, retroactive shot, not the old attempt's.
+    from sports_watcher.sports.basketball.geometry import basket_xy
+    from tests.helpers.vision import RIM_HEIGHT_M
+
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, S, holder_id=1)
+    b.shot(1, S, "right", outcome="miss")
+    b.hold(1.0, S, holder_id=2)
+    for _ in range(round(6.0 * b.fps)):
+        b.frame(S, None, camera_hint="closeup")
+    basket_at = b.t
+    for i in range(12):
+        b.frame(S, (basket_xy(L, "right"), RIM_HEIGHT_M + 0.6 - 0.1 * i))
+    b.hold(7.0, S, holder_id=2)
+    ev = drive(observations(b.frames, deltas={basket_at + 5.3: (2, 0)}), score_lag_s=10.0)
+    made = provisional(ev, "shot_made")
+    assert made and all(m.t_pts > basket_at - 2.0 for m in made)
+    assert len(confirmed(ev, "shot_missed")) == 1  # the first shot is still a miss

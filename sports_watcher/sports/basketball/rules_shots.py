@@ -9,6 +9,7 @@ from sports_watcher.config import LeagueConfig
 from sports_watcher.events.model import PlayerRef
 from sports_watcher.sports.base import EventDraft, Observation
 from sports_watcher.sports.basketball.confirmers import (
+    _held_by,
     always_confirm,
     base_confidence,
     delta_within,
@@ -37,7 +38,15 @@ FT_MADE_CONFIDENCE = 0.9
 FT_MISSED_CONFIDENCE = 0.6
 FT_RESOLVE_S = 3.0
 ASSUMED_FLIGHT_S = 1.0  # release to net when only the score change is known
+CROSSING_WINDOW_S = 5.5  # release to the ball through the rim: the hidden-release gap plus a flight
+SAME_SHOT_S = 0.5  # releases closer than this by one team are one shot (the ball changing track ids)
 ZONE_POINTS = {"two": 2, "three": 3}
+
+
+def _same_shot(last: tuple[float, str] | None, t_pts: float, team: str) -> bool:
+    if last is None or not 0.0 <= t_pts - last[0] < SAME_SHOT_S:
+        return False
+    return team == last[1] or "unknown" in (team, last[1])
 POINTS_ZONE = {1: "ft", 2: "two", 3: "three"}
 
 
@@ -63,6 +72,7 @@ class ShotAttemptRule:
         self._drafted: set[float] = set()
         self._lag = score_lag_s
         self._held: list[_HeldShot] = []
+        self._last: tuple[float, str] | None = None
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
         drafts = self._release_held(new, obs)
@@ -72,6 +82,9 @@ class ShotAttemptRule:
         self._drafted.add(shot.t_pts)  # decided once, at record time: never deferred
         if not shot.clock_running or shot.free_throw:
             return drafts
+        if _same_shot(self._last, shot.t_pts, shot.team):
+            return drafts
+        self._last = (shot.t_pts, shot.team)
         since = shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts)
         if shot.team not in ("home", "away"):
             self._held.append(_HeldShot(shot, new.score(), since))
@@ -123,6 +136,7 @@ class _OpenAttempt:
     score_at: tuple[int, int]
     since: float = 0.0  # the release: rim entries after it are this attempt's
     rim_seen: bool = False
+    dead: bool = False  # retracted: the shooters held the ball again before it reached the rim
     made_points: int | None = None  # points the vision-only shot_made carries (0 = unknown zone)
     missed: bool = False
     resolved: bool = False
@@ -140,6 +154,7 @@ class ShotOutcomeRule:
         self._lag = score_lag_s
         self._delay = score_delay_s
         self._flights_used: set[float] = set()
+        self._last: tuple[float, str] | None = None
         self._miss_wait = max(MISS_AFTER_LEAVE_S, score_lag_s)  # a miss is not called before the lag is out
         self._open_max = max(OPEN_ATTEMPT_MAX_S, score_lag_s + MADE_TTL_MARGIN_S)
 
@@ -155,8 +170,13 @@ class ShotOutcomeRule:
         ri = new.rim_interaction
         if ri is not None and ri.entered_pts is not None:
             for a in self._open:
-                if ri.entered_pts > a.since:
+                if ri.entered_pts > a.since and not a.dead:
                     a.rim_seen = True
+        for a in self._open:
+            # the attempt's own confirmer retracts it when the shooters hold the ball again
+            # before it reaches the rim (a lob, a pump fake): a later rim entry is not its
+            if not a.rim_seen and _held_by(new, a.team, a.since, obs):
+                a.dead = True
         for team in ("home", "away"):
             d = team_delta(team, prev.score(), new.score())
             if d in (1, 2, 3):
@@ -174,6 +194,9 @@ class ShotOutcomeRule:
         self._seen.add(shot.t_pts)
         if not shot.clock_running or shot.free_throw:
             return
+        if _same_shot(self._last, shot.t_pts, shot.team):
+            return
+        self._last = (shot.t_pts, shot.team)
         since = shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts)
         self._open.append(
             _OpenAttempt(shot.t_pts, shot.team, shot.track_id, shot.zone, shot.court_xy, new.score(), since)
@@ -192,7 +215,7 @@ class ShotOutcomeRule:
         # ball dropping out of the net does not take the points
         candidates = [
             a for a in self._open
-            if a.team in (team, "unknown") and not a.resolved and not a.missed and obs.t_pts - a.t_pts <= self._lag
+            if a.team in (team, "unknown") and not a.resolved and not a.missed and not a.dead and obs.t_pts - a.t_pts <= self._lag
         ]
         att = next((a for a in reversed(candidates) if a.rim_seen), candidates[-1] if candidates else None)
         if att is not None:
@@ -215,8 +238,10 @@ class ShotOutcomeRule:
         out = []
         before = [a for a in self._open if a.t_pts < ri.crossed_pts]
         for att in before[-1:]:  # the crossing is the latest attempt's, not every open one's
-            if att.resolved or att.missed or att.made_points is not None or att.team not in ("home", "away"):
+            if att.resolved or att.missed or att.dead or att.made_points is not None or att.team not in ("home", "away"):
                 continue
+            if ri.crossed_pts - att.since > CROSSING_WINDOW_S:
+                continue  # a basket long after this attempt is another shot's (release unseen)
             points = ZONE_POINTS.get(att.zone)
             att.made_points = points if points is not None else 0
             expect = (points,) if points is not None else (2, 3)
@@ -240,7 +265,7 @@ class ShotOutcomeRule:
         ri = new.rim_interaction
         out = []
         for att in self._open:
-            if att.resolved or att.missed or att.team not in ("home", "away"):
+            if att.resolved or att.missed or att.dead or att.team not in ("home", "away"):
                 continue
             if not att.rim_seen and obs.t_pts - att.t_pts > DEFAULT_TTL_S:
                 att.missed = True  # never reached the rim: its attempt was retracted, no miss to call

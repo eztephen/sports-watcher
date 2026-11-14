@@ -48,6 +48,7 @@ PALETTE_MERGE = 20.0  # palette entries this close to a kit's entry count as tha
 PIXELS_PER_CROP = 400
 FIT_PIXELS_PER_CROP = 100
 KIT_SHARE = 0.7  # of a crop's kit-coloured pixels, the share one kit needs to get the vote
+KIT_FIT_AFTER = 200  # samples before the first palette, about 16 s of play; refitted every 30 s
 MIN_KIT_PIXELS = 0.15  # of the torso window that must be kit-coloured at all
 BORDER = 0.08  # the box's outer columns, at torso height, show what is behind the player
 BACKGROUND_SHARE = 0.5  # a kit colour filling this much of the border is paint, not a shirt
@@ -208,7 +209,7 @@ class KitAssigner:
         self,
         home_lab: np.ndarray,
         away_lab: np.ndarray,
-        fit_after: int = 200,
+        fit_after: int = KIT_FIT_AFTER,
         refit_every_s: float = 30.0,
         sample_every_s: float = 1.0,
     ) -> None:

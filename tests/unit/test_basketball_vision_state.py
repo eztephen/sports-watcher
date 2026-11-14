@@ -277,3 +277,36 @@ def test_trajectory_shot_takes_the_later_touch_as_its_time():
     touched = replace(before, release_touch_pts=touch, release_left_reach=True)
     shot = plugin.update_state(touched, obs[i - 1]).last_shot
     assert shot is not None and shot.t_pts == touch and shot.release_pts == before.last_release.t_pts
+
+
+def test_a_basket_nobody_was_seen_shooting_is_not_credited_to_an_old_shot():
+    # Home misses, away rebounds. Later, after a close-up, the ball drops through the rim
+    # with no release seen (on footage: a free throw shot during the close-up). The shot on
+    # record is the old home miss; the ball does not go to away because of it.
+    from sports_watcher.sports.basketball.geometry import basket_xy
+    from tests.helpers.vision import RIM_HEIGHT_M
+
+    players = {1: ("home", (22.0, 7.5)), 2: ("away", (25.0, 6.0)), 3: ("home", (18.0, 3.0))}
+    b = PlayBuilder(Scene(L))
+    b.hold(0.6, players, holder_id=1)
+    b.shot(1, players, "right", outcome="miss")
+    b.hold(1.0, players, holder_id=2)
+    for _ in range(round(6.0 * b.fps)):
+        b.frame(players, None, camera_hint="closeup")
+    rim = basket_xy(L, "right")
+    for i in range(12):
+        b.frame(players, (rim, RIM_HEIGHT_M + 0.6 - 0.1 * i))
+    crossing = [s for s in _states(observations(b.frames)) if s.rim_interaction and s.rim_interaction.crossed_pts]
+    assert crossing and crossing[-1].rim_interaction.crossed_pts > 7.0  # the drop was seen as a basket
+    b.hold(1.0, players, holder_id=3)
+    states = _states(observations(b.frames))
+    assert states[-1].holder.team == "home" and states[-1].possession == "home"
+
+
+def test_the_hold_timer_restarts_when_the_nearest_player_changes():
+    players = {1: ("home", (12.0, 8.0)), 2: ("away", (15.0, 8.0))}
+    b = PlayBuilder(Scene(L))
+    for i in range(6):
+        b.hold(0.1, players, holder_id=1 if i % 2 == 0 else 2)
+    states = _states(observations(b.frames))
+    assert all(s.holder is None for s in states)

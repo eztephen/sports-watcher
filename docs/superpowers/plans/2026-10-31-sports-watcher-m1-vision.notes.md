@@ -759,3 +759,51 @@ No production code changed; `models/court` is absent again.
   the truth's 46.9 s. The misses still missing are the shots that are not found at all.
 - Suites: 274 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
   accuracy on `pba_ros_cvg_q1`, 0.866 against 0.9, as before).
+
+## Possessions: the pick-up convention, one bug, two changes tried and dropped (2026-11-14)
+
+- Convention (Stephen, 2026-11-14): after a made basket or free throw the next possession
+  starts when the other team picks the ball up, not at the inbound pass. Nine starts on Q3
+  and Q4 re-dated on 0.4 s frames (b28e153); the vision clip's were already at the pick-up.
+  Under it, before any code change: possession_start 5 / 1 / 1 (vision), 4 / 5 / 5 (Q3),
+  4 / 3 / 3 (Q4).
+- Holder trace on the late and missing starts:
+  - Q3, 101 s: a free throw drops with no release seen (close-up). `_scored_on` took the
+    shot on record, Rain or Shine's from 55 s earlier, as the scorer and gave the ball to
+    Converge when a Rain or Shine player picked it up. Possession stayed wrong for 20 s.
+    Fixed: a rim crossing counts for a shot released at most 5.5 s before it
+    (`RIM_SHOT_RELEASE_GAP_S + RIM_SHOT_FLIGHT_S`). The same bound is now in
+    `ShotOutcomeRule._on_crossing`: with attempts kept open for the miss, the Q3 attempt at
+    18.3 s collected the basket at 31 s and confirmed a `shot_made` with no score change
+    near it (the golden invariant caught it).
+  - Q4, 82.8 s: the ball is in Converge hands from the rebound, the nearest track id
+    changes four times in two seconds and each change restarts the 0.165 s hold timer;
+    credited at 84.7 s.
+  - Q4, 4.8 s: every team is `unknown` until the kit palette is fitted at 200 samples,
+    about 16 s into a clip; the holder is right from 10 s, credited at 15.97 s.
+- Tried and dropped, each measured on real rebuilds:
+  - The hold timer carried over between teammates. Q4 possession_start 4 / 3 / 3 to
+    5 / 2 / 2, but Q3 4 / 5 / 5 to 4 / 9 / 5 with a third false turnover and the 46.7 s
+    shot back on the wrong team, and the vision clip gained an attempt and a miss on a
+    fouled drive (87 to 90 s), failing its floors. Holders found sooner only help when
+    their team label is right.
+  - The palette fitted at 60 samples. As accurate on the labelled crops (0 to 3 wrong in
+    about 155 over six random fits) and it gave Q3 6 / 6 / 3, but it moves the 30 s refits
+    and the vision clip's 150 s inbound flipped to the wrong team again (4 / 4 / 2).
+  The 60-sample caches (version 329103b3f070 and similar) are unused.
+- Kept, each with a test that failed first: the two crossing bounds above; releases by one
+  team less than 0.5 s apart are one shot (the ball changing track ids on the way up; a
+  second shot 0.8 s later is still a putback); an attempt retracted because the shooters
+  held the ball again gets no miss and no make from a later shot at that rim.
+- Scores after (true / false / missed): the vision clip and Q4 are event for event the
+  same as before. Q3: shot_attempt 6 / 2 / 5 to 6 / 1 / 5 and shot_missed 1 / 3 / 3 to
+  1 / 2 / 3 (the false attempt at 110.92 s and its miss are gone); possession_start
+  4 / 5 / 5 to 4 / 7 / 5 (a home start now confirmed at 38.37 s, the right team 5.8 s
+  late, where a draft at 33.5 s used to be retracted; a false away start at 123.8 s).
+- Suites: 281 unit tests, ruff clean, integration passes, golden 10 of 11 (camera
+  accuracy on `pba_ros_cvg_q1`, as before).
+- Possessions did not improve in this round. What is left depends on the team label of
+  the ball holder (false flips at 131, 133, 193 s on Q3), on a holder being found at all
+  after a basket (116.0, 102.8 s on Q3), and on the cold start.
+- Process: `tmp/clip_run.py` was once more started before a cache had its completion
+  marker; see the Q4 section.

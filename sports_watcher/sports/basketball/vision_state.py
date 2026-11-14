@@ -276,6 +276,12 @@ def _scored_on(state: GameState) -> tuple[Team, float] | None:
         return None
     if shot.team not in ("home", "away"):
         return None
+    since = shot.t_pts if shot.release_pts is None else min(shot.t_pts, shot.release_pts)
+    if ri.crossed_pts - since > RIM_SHOT_RELEASE_GAP_S + RIM_SHOT_FLIGHT_S:
+        # The ball went through long after the shot on record: a basket whose release was
+        # not seen (a free throw during a close-up), not that shot. It gave the ball to
+        # the team that had just scored it.
+        return None
     if state.possession_since_pts is not None and state.possession_since_pts > ri.crossed_pts:
         return None
     return ("away" if shot.team == "home" else "home"), ri.crossed_pts
