@@ -45,3 +45,30 @@ def test_probe_predicts_argmax_and_round_trips(tmp_path):
     assert p.predict(np.zeros(2), np.array([0.0, 0.0, 1.0]))[0] == "graphics"
     p.save(tmp_path / "probe.json")
     assert CameraProbe.load(tmp_path / "probe.json").predict(np.array([1.0, 0.0]), np.zeros(3))[0] == "closeup"
+
+
+def test_leaving_main_for_replay_takes_longer_than_a_misread():
+    """A replay shot by the main camera looks like live play frame for frame, so a short
+    run of replay hints during play is a misread; a real replay outlasts it."""
+    t = CameraStateTracker()
+    t.update("main", 0.9, 0.0)
+    for i in range(1, 16):  # 1.5 s of replay hints
+        assert t.update("replay", 0.6, 0.1 * i) == "main"
+    assert t.update("main", 0.9, 1.6) == "main"
+    for i in range(26):
+        t.update("replay", 0.6, 2.0 + 0.1 * i)
+    assert t.state == "replay"
+
+
+def test_replay_after_a_close_up_or_a_graphic_switches_at_the_usual_hold():
+    t = CameraStateTracker()
+    t.update("closeup", 0.9, 0.0)
+    t.update("replay", 0.6, 1.0)
+    assert t.update("replay", 0.6, 1.6) == "replay"
+
+
+def test_main_to_close_up_keeps_the_usual_hold():
+    t = CameraStateTracker()
+    t.update("main", 0.9, 0.0)
+    t.update("closeup", 0.9, 1.0)
+    assert t.update("closeup", 0.9, 1.6) == "closeup"

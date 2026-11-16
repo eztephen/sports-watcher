@@ -11,11 +11,21 @@ from sports_watcher.perception.types import CameraHint
 
 DEFAULT_HOLD_S = 0.5
 DEFAULT_MIN_CONFIDENCE = 0.3
+# A replay shot by the main camera looks like live play in a single frame, so the probe
+# calls stretches of play "replay" for a second or so. A real replay follows a wipe and
+# lasts several seconds: leaving main for replay waits this long.
+DEFAULT_REPLAY_HOLD_S = 2.0
 
 
 class CameraStateTracker:
-    def __init__(self, hold_s: float = DEFAULT_HOLD_S, min_confidence: float = DEFAULT_MIN_CONFIDENCE) -> None:
+    def __init__(
+        self,
+        hold_s: float = DEFAULT_HOLD_S,
+        min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+        replay_hold_s: float = DEFAULT_REPLAY_HOLD_S,
+    ) -> None:
         self.hold_s = hold_s
+        self.replay_hold_s = replay_hold_s
         self.min_confidence = min_confidence
         self._state: str = "main"
         self._seen_any = False
@@ -40,7 +50,9 @@ class CameraStateTracker:
             return self._state
         if self._pending is None or self._pending[0] != hint:
             self._pending = (hint, t_pts)
-        elif t_pts - self._pending[1] >= self.hold_s:
+        elif t_pts - self._pending[1] >= (
+            self.replay_hold_s if self._state == "main" and hint == "replay" else self.hold_s
+        ):
             self._state = hint
             self._pending = None
         return self._state
