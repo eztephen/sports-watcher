@@ -87,3 +87,33 @@ def test_rfdetr_sessions_prefer_the_cpu_provider():
 
     assert default_providers(prefer_cpu=True)[0] == "CPUExecutionProvider"
     assert "CPUExecutionProvider" in default_providers()
+
+
+IMG = np.zeros((1080, 1920, 3), np.uint8)
+
+
+def test_the_crop_pass_wins_over_a_full_frame_ball():
+    # Trusting a confident full-frame ball without the crop was tried and cost events.
+    d = FakeDetector()
+    full = Detection((900.0, 500.0, 930.0, 530.0), "ball", 0.9)
+    out = BallFinder(d).find(IMG, (200.0, 200.0), [full])
+    assert len(d.calls) == 1 and out is not None and out.confidence == 0.8
+
+
+def test_no_crop_pass_once_the_ball_has_been_lost():
+    # The filter extrapolates for ever; a crop around a position minutes old finds nothing
+    # and cost as much as the whole detector.
+    d = FakeDetector()
+    assert BallFinder(d).find(IMG, (200.0, 200.0), [], tracking=False) is None
+    assert d.calls == []
+    weak = Detection((900.0, 500.0, 930.0, 530.0), "ball", 0.35)
+    assert BallFinder(d).find(IMG, (200.0, 200.0), [weak], tracking=False) == weak
+
+
+def test_ball_filter_says_whether_the_ball_was_seen_lately():
+    from sports_watcher.perception.tracker import BallFilter
+
+    f = BallFilter()
+    assert f.seen_within(0.0, 1.0) is False
+    f.update((100.0, 100.0), 10.0, 0.9, 0.0)
+    assert f.seen_within(0.9, 1.0) is True and f.seen_within(1.1, 1.0) is False

@@ -1080,3 +1080,36 @@ replays with real perception; the sections above have the detail behind each lin
 - Open, by expected return: vision speed for live (one detector pass, a GPU); truth for
   shots and possessions on the second game, drafted by a person; the camera probe; the
   court model when someone can label points; the small possession causes above.
+
+## Tools into scripts/, a label that changed between runs, the ball crop pass (2026-11-16)
+
+- `scripts/perceive_memo.py` and `scripts/score_clip.py` replace `tmp/perceive_memo.py`,
+  `tmp/clip_run.py` and `tmp/rescore.py`. The memo store keeps its keys; its values moved
+  from pickle to npz (59,059 rows converted in place). `score_clip.py` refuses a clip
+  whose cache for the current code is missing or has no completion marker. The labelled
+  crops are in `data/labels/kit_crops`.
+- Non-determinism found by replaying a cache twice: 34 lines of `pba_ros_cvg_2700`
+  differed in one track's team. `KitAssigner.team_of` broke a tie between one home and
+  one away vote with `max(set(votes), ...)`, and the order of a set of strings changes
+  with the process's hash seed. A tie is now `unknown` (test run under six seeds). With
+  this fix alone the vision clip, Q3 and Q4 score exactly as at 6b98a70.
+- Ball crop pass, measured on Q4 (5400 perception frames): it ran on 5399, the full frame
+  already had a plausible ball on 2114, the crop added one on 222; where both saw one
+  they were 3.4 px apart at the median and over 30 px apart on 207 of 1296, the crop's
+  the less confident (0.52 against 0.73). It ran for minutes after the ball was lost,
+  around the filter's extrapolation.
+  - Kept: the crop is searched only while the ball was seen within 1 s
+    (`BallFilter.seen_within`, `BALL_SEARCH_S`). Every clip scores as before, event for
+    event; model calls per clip fall 14 to 18 % (vision 11418 to 9784, Q3 13564 to 11553,
+    Q4 11627 to 9526).
+  - Dropped: taking a full-frame ball of confidence 0.5 or more without the crop. Vision
+    possession_start 5 / 1 / 1 to 4 / 3 / 2 and a false attempt, Q4 a false shot_made,
+    Q3 possession_start 5 / 7 / 4 to 4 / 8 / 5; two floors failed. The crop's position is
+    the one the holder test needs.
+  - Method note: the first rebuild carried both perception changes at once and could not
+    say which regressed; each was then rebuilt alone.
+- Speed: no gain during live play, where the ball is tracked nearly all the time
+  (bench on Q4 at 30 s: 572 ms a frame, ball stage 267). The saving is in timeouts and
+  close-ups.
+- Suites: 298 unit tests, ruff clean, integration passes, golden 11 of 12 (camera
+  accuracy on `pba_ros_cvg_q1`, as before). Cache version 5864c1c525f2 is superseded.

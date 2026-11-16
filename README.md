@@ -74,6 +74,13 @@ that map the two clusters of player crops to home and away. `--no-vision` forces
 scoreboard-only; `--no-cache` ignores the cache. Time the perception stages with
 `scripts/bench_perceiver.py`.
 
+While working on the tracker, the team reading or the rules, build caches with
+`scripts/perceive_memo.py` (same options as `perceive.py`): it stores every model output
+under a hash of its input in `data/cache/onnx_memo/`, so a rebuild after a change that
+leaves the models' inputs alone takes minutes. `scripts/score_clip.py <clip>` then runs a
+golden clip the way `tests/golden` does and prints true, false and missed per event type;
+it refuses a clip whose cache is missing or unfinished.
+
 Vision rules only fire while the game clock is running (replays, timeouts and dead
 balls freeze them); free throws and the tip-off are the exceptions.
 

@@ -1,4 +1,13 @@
-"""Ball detection at native resolution: a crop around the predicted ball position."""
+"""Ball detection at native resolution: a crop around the predicted ball position.
+
+The crop pass costs a whole detector run (250 of 531 ms a frame on a laptop CPU), and it
+used to run on every frame, also minutes after the ball was last seen, around a position
+the filter kept extrapolating. It now runs only while the ball is being tracked.
+
+Tried and dropped: taking a confident full-frame ball without the crop pass. On three
+minutes of footage the two passes were 3.4 px apart at the median where both saw a ball,
+but trusting the full frame cost a made basket's date on one clip and added false
+possession starts on two (the crop's ball is the better one for the holder test)."""
 
 from __future__ import annotations
 
@@ -44,14 +53,17 @@ class BallFinder:
         image_bgr: np.ndarray,
         predicted_xy: tuple[float, float] | None,
         full_dets: list[Detection],
+        tracking: bool = True,
     ) -> Detection | None:
+        """``tracking`` is False once the ball has not been seen for a while: the predicted
+        position is then worthless and no crop is searched."""
         image_h = image_bgr.shape[0]
-        if predicted_xy is not None:
+        if predicted_xy is not None and tracking:
             x0, y0, x1, y1 = crop_window(predicted_xy, self.crop_px, image_bgr.shape[:2])
             crop = np.ascontiguousarray(image_bgr[y0:y1, x0:x1])
-            balls = [d for d in self._detector.detect(crop) if self._plausible(d, image_h)]
-            if balls:
-                best = max(balls, key=lambda d: d.confidence)
+            found = [d for d in self._detector.detect(crop) if self._plausible(d, image_h)]
+            if found:
+                best = max(found, key=lambda d: d.confidence)
                 b = best.box
                 return Detection((b[0] + x0, b[1] + y0, b[2] + x0, b[3] + y0), best.cls, best.confidence)
         balls = [d for d in full_dets if self._plausible(d, image_h)]

@@ -255,6 +255,10 @@ class BallFilter:
         x = self._f(dt) @ self._kf.x
         return (float(x[0, 0]), float(x[1, 0]))
 
+    def seen_within(self, t_pts: float, seconds: float) -> bool:
+        """An accepted detection at most ``seconds`` ago."""
+        return self._last_t is not None and t_pts - self._last_t <= seconds
+
     def update(self, xy: tuple[float, float], radius_px: float, confidence: float, t_pts: float) -> bool:
         if self._kf is not None and self._last_t is not None and t_pts - self._last_t > self.drop_after_s:
             self.reset()  # dropped: take the next detection as a fresh start

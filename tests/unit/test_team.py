@@ -216,3 +216,15 @@ def test_white_court_paint_behind_a_player_is_not_his_kit():
     assert a.team_of(901) == "unknown"
     a.observe(902, _side_on_crop(WHITE_KIT, rng, floor=BLUE_KIT), 40.0)  # white shirt over blue paint
     assert a.team_of(902) == "home"
+
+
+def test_a_track_with_as_many_votes_for_each_kit_has_no_team():
+    # One white and one blue vote: the answer used to follow the iteration order of a set
+    # of strings, which changes from one Python process to the next.
+    rng = np.random.default_rng(0)
+    a = _fitted_kits(rng)
+    a.observe(950, _player_crop(WHITE_KIT, rng), 50.0)
+    a.observe(950, _player_crop(BLUE_KIT, rng), 51.0)
+    assert a.team_of(950) == "unknown"
+    a.observe(950, _player_crop(BLUE_KIT, rng), 52.0)
+    assert a.team_of(950) == "away"

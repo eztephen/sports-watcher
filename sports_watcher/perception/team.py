@@ -284,7 +284,10 @@ class KitAssigner:
 
     def team_of(self, track_id: int) -> Team:
         votes = [v for tid, v in zip(self._track_of, self._votes, strict=True) if tid == track_id and v != "unknown"]
-        return max(set(votes), key=votes.count) if votes else "unknown"
+        home, away = votes.count("home"), votes.count("away")
+        if home == away:
+            return "unknown"  # no votes, or a tie: taking either made the label depend on set order
+        return "home" if home > away else "away"
 
     def _fit(self, t_pts: float) -> None:
         sample = np.concatenate([p[:: max(1, len(p) // FIT_PIXELS_PER_CROP)] for p, _ in self._pixels]).astype(float)

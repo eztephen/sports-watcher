@@ -21,6 +21,8 @@ Where M1 stands, with scores per clip, is the last section of
 ./.venv/bin/python scripts/evaluate.py --events tmp/events.jsonl --truth data/golden/<clip>.truth.jsonl
 ./.venv/bin/python scripts/perceive.py --source <clip> --home-color white --away-color navy   # build the perception cache
 ./.venv/bin/python scripts/bench_perceiver.py --models models --source <clip> --start 70 --frames 100
+./.venv/bin/python scripts/perceive_memo.py --source <clip> --home-color white --away-color navy  # same, model outputs memoised: minutes after the first build
+./.venv/bin/python scripts/score_clip.py data/golden/<clip>.mp4 --events shot_attempt       # run a golden clip as the tests do, print its scores
 ./.venv/bin/python scripts/download_models.py                                           # weights from a GitHub release
 ./.venv/bin/pip install -e ".[train]"   # training extra (rfdetr, torch, transformers, roboflow); see training/README.md
 ```

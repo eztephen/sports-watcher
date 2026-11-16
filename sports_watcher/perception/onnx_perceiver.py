@@ -45,6 +45,7 @@ from sports_watcher.perception.types import (
 RIM_HOLD_S = 2.0
 RIM_MEDIAN_S = 1.0
 NO_PROBE_HINT = ("main", 0.5)
+BALL_SEARCH_S = 1.0  # the crop pass looks for a ball seen at most this long ago
 
 
 class OnnxPerceiver:
@@ -88,7 +89,8 @@ class OnnxPerceiver:
             template=hashlib.sha256(template_text.encode()).hexdigest()[:12],
             keypoint_every_s=keypoint_every_s,
             probe_every_s=probe_every_s,
-            team_features="kit-palette-gate-bg" if home_color and away_color else "torso-lab",
+            team_features="kit-palette-gate-bg-tie" if home_color and away_color else "torso-lab",
+            ball="crop-while-tracked",
         )
 
         self._embed: SiglipEmbedder | None = SiglipEmbedder(models.siglip, providers) if models.siglip else None
@@ -165,7 +167,7 @@ class OnnxPerceiver:
 
     def _update_ball(self, img: np.ndarray, dets: list[Detection], t: float) -> BallObs | None:
         pred = self._ball.predict(t)
-        det = self._timed("ball", self._ball_finder.find, img, pred, dets)
+        det = self._timed("ball", self._ball_finder.find, img, pred, dets, self._ball.seen_within(t, BALL_SEARCH_S))
         if det is not None:
             cx, cy = box_center(det.box)
             radius = max(det.box[2] - det.box[0], det.box[3] - det.box[1]) / 2.0
