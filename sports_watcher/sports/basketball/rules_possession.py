@@ -11,6 +11,7 @@ from sports_watcher.sports.basketball.confirmers import (
     holding,
     possession_changes_within,
     rebound_holds,
+    team_delta,
     team_holds,
     team_holds_unless_attempt,
     vision_evidence,
@@ -57,12 +58,18 @@ class PossessionStartRule:
         self._held = False  # ... and whether its team was seen holding the ball
         self._before: str | None = None  # the team that had the ball before it
         self._resumed_since: float | None = None  # a return after a hold too brief to count
+        self._free_throw_pts: float | None = None  # the last free throw seen: a release or a +1
 
     def __call__(self, prev: GameState, new: GameState, obs: Observation) -> list[EventDraft]:
         h = new.holder
         if h is not None and h.since_pts not in self._holds and new.possession in ("home", "away") and h.team in (new.possession, "unknown"):
             self._holds = [s for s in self._holds if obs.t_pts - s <= 4 * RESTART_GRACE_S] + [h.since_pts]
         self._watch(new, obs.t_pts)
+        shot = new.last_shot
+        if shot is not None and shot.free_throw:
+            self._free_throw_pts = max(self._free_throw_pts or shot.t_pts, shot.t_pts)
+        if any(team_delta(team, prev.score(), new.score()) == 1 for team in ("home", "away")):
+            self._free_throw_pts = obs.t_pts
         if new.possession not in ("home", "away") or h is None or not new.clock_running:
             return []
         since = new.possession_since_pts
@@ -72,10 +79,13 @@ class PossessionStartRule:
         stale = opened is not None and since < opened - RESTART_GRACE_S
         if stale:
             # The team had the ball before the clock restarted. A hold carried through the
-            # stoppage is not a start; a new hold around the restart of a clock that stood
-            # still (an inbound, the rebound of a free throw) is.
+            # stoppage is not a start, and neither is its inbound after a foul or a ball out
+            # of bounds: the possession goes on. After free throws the state's possession is
+            # only what was left over, so a new hold around the restart of a clock that
+            # stood still is a start.
             fresh = [s for s in self._holds if opened - RESTART_GRACE_S <= s <= opened + RESTART_GRACE_S]
-            if not (new.clock_resumed_from_stop and fresh) or self._drafted_restart == opened:
+            free_throws = self._free_throw_pts is not None and self._free_throw_pts > since
+            if not (new.clock_resumed_from_stop and fresh and free_throws) or self._drafted_restart == opened:
                 return []
             self._drafted_restart = opened
             since = min(fresh)  # the first hold around the restart

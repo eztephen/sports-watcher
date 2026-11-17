@@ -1166,3 +1166,29 @@ replays with real perception; the sections above have the detail behind each lin
   court model. A download into an empty folder with `scripts/download_models.py` gave
   files with the same SHA-256 as `models/`.
 - Suites: 301 unit tests, ruff clean, integration passes, golden passes whole for the first time.
+
+## Possession: the same team's inbound after a foul is not a new start (2026-11-17)
+
+- The restart rule in `PossessionStartRule` (a new hold around the restart of a clock
+  that stood still, by the team the state already has in possession) fired twice on the
+  six clips: vision 150.7 s, true (Rain or Shine shot free throws at 115.6 and 128.9 s,
+  the state still had Converge from 117.3 s), and Q3 167.8 s, false (Converge had the
+  ball from 139.1 s, a foul and an injury stoppage, Converge inbounds).
+- Ruling: the restart is a start only when a free throw was seen since the possession
+  began, as a free-throw release or a one-point score change (`_free_throw_pts`). After
+  a foul on the floor or a ball out of bounds the possession goes on — cost if wrong: a
+  possession that changed hands during a stoppage with no free throw and no hold seen
+  before it (a turnover whistled dead, then an inbound the state credits to the old
+  team) gets no start; the next change of holder still flips it.
+- Test first: the restart test now has a free throw in the stoppage, and a new one has
+  the same play without it and expects no start (failed before the change).
+- Effect: Q3 possession_start 5 / 7 / 4 to 5 / 6 / 4 (the 167.8 s start is gone). The
+  other five clips are identical event for event.
+- Looked at and left, no sound rule found:
+  - Q3 131.0 s (a referee detected as a player, read as navy) and its flip back at
+    133.1 s. A longer hold before a steal confirms would retract both, but the wrong
+    possession lasts 2.1 s and the threshold would be set by this one case.
+  - Q3 192.8 s (a false ball at a standing player's foot): it never flips back.
+  - Q3 55.8 s (a player standing by the ball after a foul, clock hidden by the banner)
+    and 123.7 / 125.2 s (the label on a blurred player after a basket).
+- Suites: 302 unit tests, ruff clean, golden passes.

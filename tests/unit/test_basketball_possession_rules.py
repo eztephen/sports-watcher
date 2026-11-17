@@ -151,19 +151,30 @@ def test_adjacent_defender_does_not_take_possession():
     assert provisional(ev, "turnover") == [] and len(provisional(ev, "possession_start")) == 1
 
 
-def test_new_hold_at_a_dead_ball_restart_starts_the_possession():
-    # Home has the ball through a stopped clock (free throws, an inbound); a teammate
-    # receives it just before the clock restarts at 5 s.
+def test_new_hold_at_a_restart_after_free_throws_starts_the_possession():
+    # The state still has home in possession through a stopped clock in which a free
+    # throw went in; a home player receives the ball just before the clock restarts at 5 s.
     b = PlayBuilder(Scene(L))
     b.hold(4.0, P, holder_id=3)
     b.pass_(3, 1, P, flight_s=0.4)
     received_at = b.t
     b.hold(2.0, P, holder_id=1)
-    ev = drive(observations(b.frames, running=False, resume_at=5.0))
+    ev = drive(observations(b.frames, running=False, resume_at=5.0, deltas={2.0: (0, 1)}))
     prov = provisional(ev, "possession_start")
     assert len(prov) == 1 and prov[0].team == "home"
     assert abs(prov[0].t_pts - received_at) < 0.2
     assert len(confirmed(ev, "possession_start")) == 1
+
+
+def test_same_team_inbounding_after_a_foul_without_free_throws_is_not_a_new_possession():
+    # A stopped clock with no free throw (a foul on the floor, a ball out of bounds): the
+    # team that had the ball still has it, whoever receives the inbound.
+    b = PlayBuilder(Scene(L))
+    b.hold(4.0, P, holder_id=3)
+    b.pass_(3, 1, P, flight_s=0.4)
+    b.hold(2.0, P, holder_id=1)
+    ev = drive(observations(b.frames, running=False, resume_at=5.0))
+    assert provisional(ev, "possession_start") == []
 
 
 def test_new_hold_after_a_hidden_scoreboard_is_not_a_possession_start():
