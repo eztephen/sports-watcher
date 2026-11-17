@@ -1,0 +1,2 @@
+- [User profile: Stephen](user-profile-stephen.md) — GT/APS sportsbook dev, Philippines, research then design then code, humanizer rules
+- [sports-watcher context](sports-watcher-context.md) — goal, related repos, VPN DB access, LSports integration path, licensing rule

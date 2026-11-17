@@ -5,6 +5,7 @@ game events. Spec: `docs/superpowers/specs/2026-10-31-sports-watcher-v1-design.m
 the M1 addendum `docs/superpowers/specs/2026-10-31-sports-watcher-m1-vision-design.md`.
 Plans: `docs/superpowers/plans/2026-10-31-sports-watcher-m0-skeleton.md` (done),
 `docs/superpowers/plans/2026-10-31-sports-watcher-m1-vision.md` (vision, executed).
+New to the project: read `docs/HANDOFF.md` first.
 Where M1 stands, with scores per clip, is the last section of
 `docs/superpowers/plans/2026-10-31-sports-watcher-m1-vision.notes.md`.
 
