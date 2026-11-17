@@ -1159,6 +1159,10 @@ replays with real perception; the sections above have the detail behind each lin
   123 s read as main and reset the rim state. Read correctly, the ball enters the rim
   zone at 101.6 s as the broadcast cuts away and never leaves it, and a miss dated there
   would be 3 s late. Left as it is; shot_missed has no floor.
-- The weights are not in git: the release that `scripts/download_models.py` reads still
-  carries v1 until `models/camera/probe.json` is uploaded to it.
+- The weights are not in git. Correction (2026-11-17): no release existed when this was
+  written; the line here said it still carried v1. Release `m1-models` was created on
+  2026-11-17 at 2e2e606 with `models-2026-11-17.zip` (450 MB): the detector, the SigLIP
+  vision tower and the v2 probe, licences and the CC BY 4.0 attribution in its notes, no
+  court model. A download into an empty folder with `scripts/download_models.py` gave
+  files with the same SHA-256 as `models/`.
 - Suites: 301 unit tests, ruff clean, integration passes, golden passes whole for the first time.
